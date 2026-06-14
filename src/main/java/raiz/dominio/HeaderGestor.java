@@ -10,6 +10,9 @@ public class HeaderGestor {
 
     public HeaderGestor(List<String> headers, List<String> headersTemplate) {
 
+        System.out.println("Headers: " + headers);
+        System.out.println("Headers template: "  + headersTemplate);
+
         this.headers = new Integer[headersTemplate.size()];
         this.headersTemplate = new ArrayList<>();
 

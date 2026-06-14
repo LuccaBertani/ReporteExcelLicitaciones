@@ -21,6 +21,9 @@ public class InsertorDatos {
     @Value("#{'${excel.header}'.replace('[','').replace(']','').split('\\s*,\\s*')}")
     private List<String> headersTemplate;
 
+    @Value("#{'${excel.renglon.riesgo}'.replace('[','').replace(']','').split('\\s*,\\s*')}")
+    private List<String> renglonRiesgos;
+
     private final IClienteRepository clienteRepository;
     private final IEntidadAdjudicada entidadAdjudicadaRepository;
     private final ILicitacion entidadLicitacionRepository;
@@ -29,10 +32,12 @@ public class InsertorDatos {
     private final IStatus entidadStatusRepository;
     private final ILicitacionRiesgoRepository licitacionRiesgoRepository;
     private final ITipoAdjudicacion entidadTipoAdjudicacionRepository;
+    private final IRamoRepository entidadRamoRepository;
+    private final IMonedaRepository entidadMonedaRepository;
     private final LectorCeldas lectorCeldas = new LectorCeldas();
     private GestorRiesgos gestorRiesgos;
 
-    public InsertorDatos(IClienteRepository clienteRepository, IEntidadAdjudicada entidadAdjudicadaRepository, ILicitacion entidadLicitacionRepository, IMes entidadMesRepository, IRiesgo entidadRiesgoRepository, IStatus entidadStatusRepository, ILicitacionRiesgoRepository licitacionRiesgoRepository, ITipoAdjudicacion entidadTipoAdjudicacionRepository) {
+    public InsertorDatos(IClienteRepository clienteRepository, IEntidadAdjudicada entidadAdjudicadaRepository, ILicitacion entidadLicitacionRepository, IMes entidadMesRepository, IRiesgo entidadRiesgoRepository, IStatus entidadStatusRepository, ILicitacionRiesgoRepository licitacionRiesgoRepository, ITipoAdjudicacion entidadTipoAdjudicacionRepository, IRamoRepository entidadRamoRepository, IMonedaRepository monedaRepository) {
 
         this.clienteRepository = clienteRepository;
         this.entidadAdjudicadaRepository = entidadAdjudicadaRepository;
@@ -42,11 +47,12 @@ public class InsertorDatos {
         this.entidadStatusRepository = entidadStatusRepository;
         this.licitacionRiesgoRepository = licitacionRiesgoRepository;
         this.entidadTipoAdjudicacionRepository = entidadTipoAdjudicacionRepository;
+        this.entidadRamoRepository = entidadRamoRepository;
+        this.entidadMonedaRepository = monedaRepository;
     }
 
     @PostConstruct
     public void init() {
-        this.almacenarRiesgo();
         this.gestorRiesgos = new GestorRiesgos(this.entidadRiesgoRepository);
     }
 
@@ -81,7 +87,10 @@ public class InsertorDatos {
             while (rows.hasNext()) {
 
                 Row currentRow = rows.next();
-                Mes mes = this.almacenarMes(currentRow, headerGestor.getHeaderIndex("mes"));
+                Moneda moneda = this.almacenarMoneda(currentRow, headerGestor.getHeaderIndex("moneda"));
+                Ramo ramo = this.almacenarRamo(currentRow, headerGestor.getHeaderIndex("ramo"));
+                this.almacenarRiesgo(currentRow, headerGestor.getHeaderIndex("riesgo"), ramo);
+                Mes mes = this.almacenarMes(currentRow, headerGestor.getHeaderIndex("Fecha"));
                 Cliente cliente = this.almacenarCliente(currentRow, headerGestor.getHeaderIndex("cliente"));
                 EntidadAdjudicada adjudicada = this.almacenarAdjudicadoA(currentRow, headerGestor.getHeaderIndex("adjudicadoA"));
                 Status status = this.almacenarStatus(currentRow, headerGestor.getHeaderIndex("status"));
@@ -91,19 +100,35 @@ public class InsertorDatos {
                 Integer indexFecha = headerGestor.getHeaderIndex("Fecha");
                 Integer indexMotivo = headerGestor.getHeaderIndex("Motivo");
                 Integer indexMontoAdjudicado = headerGestor.getHeaderIndex("MontoAdjudicado");
+                Integer indexMontoCotizado = headerGestor.getHeaderIndex("MontoCotizado");
 
-                List<Integer> indicesRiesgoCosto = List.of(
-                        headerGestor.getHeaderIndex("RiesgoCosto1"),
-                        headerGestor.getHeaderIndex("RiesgoCosto2")
-                );
+                Integer riesgoCosto1Header = headerGestor.getHeaderIndex("RiesgoCosto1");
+                Integer riesgoCosto2Header = headerGestor.getHeaderIndex("RiesgoCosto2");
 
-                List<Integer> indicesAdjudicadoCosto = List.of(
-                        headerGestor.getHeaderIndex("AdjudicadoCosto1"),
-                        headerGestor.getHeaderIndex("AdjudicadoCosto2"),
-                        headerGestor.getHeaderIndex("AdjudicadoCosto3")
-                );
+                List<Integer> indicesRiesgoCosto = null;
 
-                this.almacenarLicitacion(currentRow, mes, cliente, status, adjudicada, indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexMontoAdjudicado, indicesRiesgoCosto, indicesAdjudicadoCosto);
+                if(riesgoCosto1Header != null && riesgoCosto2Header != null) {
+                    indicesRiesgoCosto = List.of(
+                            riesgoCosto1Header,
+                            riesgoCosto2Header
+                    );
+                }
+
+                List<Integer> indicesAdjudicadoCosto = null;
+
+                Integer AdjudicadoCosto1Header = headerGestor.getHeaderIndex("AdjudicadoCosto1");
+                Integer AdjudicadoCosto2Header = headerGestor.getHeaderIndex("AdjudicadoCosto2");
+                Integer AdjudicadoCosto3Header = headerGestor.getHeaderIndex("AdjudicadoCosto3");
+
+                if(AdjudicadoCosto1Header != null &&  AdjudicadoCosto2Header != null &&  AdjudicadoCosto3Header != null) {
+                    indicesAdjudicadoCosto = List.of(
+                            AdjudicadoCosto1Header,
+                            AdjudicadoCosto2Header,
+                            AdjudicadoCosto3Header
+                    );
+                }
+
+                this.almacenarLicitacion(currentRow, mes, cliente, moneda, status, adjudicada, indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
             }
 
             System.out.println("¡Importación completada con éxito!");
@@ -119,7 +144,7 @@ public class InsertorDatos {
 
     private Cliente almacenarCliente(Row row, Integer indexCliente) {
 
-        String detalle = row.getCell(indexCliente).getStringCellValue();
+        String detalle = lectorCeldas.leerCeldaRecortada(row, indexCliente);
 
         Cliente cliente = this.clienteRepository.findByDetalle(detalle);
 
@@ -133,9 +158,23 @@ public class InsertorDatos {
 
     }
 
-    private Mes almacenarMes(Row row, Integer indexMes) {
+    private Mes almacenarMes(Row row, Integer indexFecha) {
 
-        String detalle = row.getCell(indexMes).getStringCellValue();
+        java.sql.Date fecha = lectorCeldas.leerFecha(row, indexFecha);
+
+        if (fecha == null) {
+            return null;
+        }
+
+        java.util.Calendar calendar = java.util.Calendar.getInstance();
+        calendar.setTime(fecha);
+
+        String[] nombresMeses = {
+                "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+                "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+        };
+
+        String detalle = nombresMeses[calendar.get(java.util.Calendar.MONTH)];
 
         Mes mes = this.entidadMesRepository.findByDetalle(detalle);
 
@@ -149,72 +188,68 @@ public class InsertorDatos {
 
     }
 
-    private void almacenarRiesgo() {
+    private Ramo almacenarRamo(Row row, Integer indexRamo) {
 
-        Map<Long, String> datosExcel = new LinkedHashMap<>();
+        String detalle = lectorCeldas.leerCeldaRecortada(row, indexRamo);
 
-        datosExcel.put(1L, "RC COMPRENSIVA");
+        Ramo ramo = this.entidadRamoRepository.findByDetalle(detalle);
 
-        datosExcel.put(2L, "RC ASCENSORES");
+        if (ramo == null) {
+            ramo = this.entidadRamoRepository.save(new Ramo(detalle));
+        }
 
-        datosExcel.put(3L, "RC CALDERAS");
+        return ramo;
+    }
 
-        datosExcel.put(4L, "RC GUARDA/DEPOSITO");
+    private void asociarRiesgoAlRamo(Riesgo riesgo, Ramo ramo) {
 
-        datosExcel.put(5L, "RC CARTELES");
+        if (riesgo.getRamo() != null && riesgo.getRamo().equals(ramo)) {
+            return;
+        }
 
-        datosExcel.put(6L, "INCENDIO");
+        riesgo.setRamo(ramo);
 
-        datosExcel.put(7L, "TECNICO EQ. ELECTRONICOS");
+        this.entidadRiesgoRepository.save(riesgo);
+    }
 
-        datosExcel.put(8L, "APC");
+    private void almacenarRiesgo(Row row, Integer indexRiesgo, Ramo ramo) {
 
-        datosExcel.put(9L, "ROBO Y RIESGOS SIMILARES");
+        String renglonRiesgo = lectorCeldas.leerComoTexto(row, indexRiesgo);
 
-        datosExcel.put(10L, "VALORES EN TRANSITO");
+        List<String> tokens = this.gestorRiesgos.obtenerTokens(renglonRiesgo);
 
-        datosExcel.put(11L, "VALORES EN CAJA");
+        for (String token : tokens) {
 
-        datosExcel.put(12L, "TR INSTRUMENTOS MUSICALES");
-
-        datosExcel.put(13L, "TR OBRAS DE ARTE");
-
-        datosExcel.put(14L, "DRONES");
-
-        datosExcel.put(15L, "INTEGRAL");
-
-        datosExcel.put(16L, "AERONAVEACION");
-
-        datosExcel.put(17L, "CAUCION");
-
-        datosExcel.put(18L, "TRO");
-
-        datosExcel.put(19L, "TRANSPORTE");
-
-        datosExcel.put(20L, "SEPELIO");
-
-        datosExcel.put(21L, "VIDA");
-
-        datosExcel.put(22L, "SALUD");
-
-        datosExcel.put(23L, "FRANQUICIAS");
-
-// Recorremos y guardamos
-        datosExcel.forEach((id, detalle) -> {
-
-            if (!entidadRiesgoRepository.existsById(id)) {
-
-                entidadRiesgoRepository.save(new Riesgo(id, detalle));
-
+            if (token.equalsIgnoreCase("SEGURO TECNICO")) {
+                continue;
             }
 
-        });
+            Riesgo riesgo = this.gestorRiesgos.resolverRiesgo(token);
 
+            if (riesgo == null) {
+
+                String nombreOficial = this.gestorRiesgos.resolverNombreOficial(token);
+
+                if (nombreOficial == null) {
+                    continue;
+                }
+
+                long id = (long) (this.renglonRiesgos.indexOf(nombreOficial) + 1);
+
+                if (id == 0L) {
+                    continue;
+                }
+
+                riesgo = new Riesgo(id, nombreOficial);
+            }
+
+            this.asociarRiesgoAlRamo(riesgo, ramo);
+        }
     }
 
     private Status almacenarStatus(Row row, Integer indexStatus) {
 
-        String detalle = row.getCell(indexStatus).getStringCellValue();
+        String detalle = lectorCeldas.leerCeldaRecortada(row, indexStatus);
 
         Status status = this.entidadStatusRepository.findByDetalle(detalle);
 
@@ -228,9 +263,23 @@ public class InsertorDatos {
 
     }
 
+    private Moneda almacenarMoneda(Row row, Integer indexMoneda) {
+        String detalle = lectorCeldas.leerCeldaRecortada(row, indexMoneda);
+
+        Moneda moneda = this.entidadMonedaRepository.findByDetalle(detalle);
+
+        if (moneda == null) {
+
+            moneda = this.entidadMonedaRepository.save(new Moneda(detalle));
+
+        }
+
+        return moneda;
+    }
+
     private EntidadAdjudicada almacenarAdjudicadoA(Row row, Integer indexAdjudicadoA) {
 
-        String detalle = row.getCell(indexAdjudicadoA).getStringCellValue();
+        String detalle = lectorCeldas.leerCeldaRecortada(row, indexAdjudicadoA);
 
         EntidadAdjudicada entidad = this.entidadAdjudicadaRepository.findByDetalle(detalle);
 
@@ -256,7 +305,7 @@ public class InsertorDatos {
 
     }
 
-    private void almacenarLicitacion(Row row, Mes mes, Cliente cliente, Status status, EntidadAdjudicada adjudicada, Integer indexNumeroCompulsa, Integer indexRiesgo, Integer indexFecha, Integer indexMotivo, Integer indexMontoAdjudicado, List<Integer> indicesRiesgoCosto, List<Integer> indicesAdjudicadoCosto) {
+    private void almacenarLicitacion(Row row, Mes mes, Cliente cliente, Moneda moneda, Status status, EntidadAdjudicada adjudicada, Integer indexNumeroCompulsa, Integer indexRiesgo, Integer indexFecha, Integer indexMotivo, Integer indexMontoAdjudicado, Integer indexMontoCotizado, List<Integer> indicesRiesgoCosto, List<Integer> indicesAdjudicadoCosto) {
 
         Licitacion licitacion;
         String numero_str = lectorCeldas.leerComoTexto(row, indexNumeroCompulsa);
@@ -290,7 +339,7 @@ public class InsertorDatos {
 
             System.out.println("SINONIMO DE RIESGO ENCONTRADO: " + riesgo_str);
 
-            if(riesgo_str.equals("SEGURO TECNICO")){
+            if(riesgo_str.equalsIgnoreCase("SEGURO TECNICO")){
                 System.out.println("SOY UN ESTORBO, AVANZO CON EL SIGUIENTE!");
                 continue;
             }
@@ -307,20 +356,21 @@ public class InsertorDatos {
                 licitacionRiesgo.setAdjudicada(adjudicada);
                 licitacionRiesgo.setFecha(lectorCeldas.leerFecha(row, indexFecha));
                 licitacionRiesgo.setMes(mes);
+                licitacionRiesgo.setMoneda(moneda);
 
-                Cell motivoCelda = row.getCell(indexMotivo);
+                Cell motivoCelda = (indexMotivo != null) ? row.getCell(indexMotivo) : null;
 
                 if (motivoCelda == null || motivoCelda.getCellType() == CellType.BLANK) {
                     System.out.println("Saltando fila: El motivo de la compulsa está vacío.");
                 } else {
-                    String motivo_str = motivoCelda.getStringCellValue();
+                    String motivo_str = lectorCeldas.leerCeldaRecortada(row, indexMotivo);
                     licitacionRiesgo.setMotivo(motivo_str);
                 }
 
                 licitacionRiesgo.setLicitacion(licitacion);
 
 //monto adjudicado
-                Cell celdaMontoAdjudicado = row.getCell(indexMontoAdjudicado);
+                Cell celdaMontoAdjudicado = (indexMontoAdjudicado != null) ? row.getCell(indexMontoAdjudicado) : null;
 
                 if (!lectorCeldas.esCeldaVaciaOInvalida(celdaMontoAdjudicado)) {
 
@@ -335,25 +385,39 @@ public class InsertorDatos {
                     licitacionRiesgo.setTipoAdjudicacion(this.entidadTipoAdjudicacionRepository.findByDetalle("DEJADA SIN EFECTO"));
                 }
 
-// monto cotizado (RiesgoCosto1 -> primer riesgo, RiesgoCosto2 -> segundo riesgo)
-                if (indiceRiesgo < indicesRiesgoCosto.size()) {
-                    Integer indexRiesgoCosto = indicesRiesgoCosto.get(indiceRiesgo);
+                //monto cotizado
+                if (indexMontoCotizado != null) {
 
-                    if (indexRiesgoCosto != null) {
-                        Double montoCotizado = lectorCeldas.leerComoDouble(row.getCell(indexRiesgoCosto));
-                        licitacionRiesgo.setMontoCotizado(montoCotizado);
+                    Cell celdaMontoCotizado = row.getCell(indexMontoCotizado);
+
+                    if (!lectorCeldas.esCeldaVaciaOInvalida(celdaMontoCotizado) && celdaMontoCotizado.getCellType() == CellType.NUMERIC) {
+                        licitacionRiesgo.setMontoCotizado(celdaMontoCotizado.getNumericCellValue());
                     }
                 }
 
+// monto cotizado (RiesgoCosto1 -> primer riesgo, RiesgoCosto2 -> segundo riesgo)
+                if(indicesRiesgoCosto != null) {
+                    if (indiceRiesgo < indicesRiesgoCosto.size()) {
+                        Integer indexRiesgoCosto = indicesRiesgoCosto.get(indiceRiesgo);
+
+                        if (indexRiesgoCosto != null) {
+                            Double montoCotizado = lectorCeldas.leerComoDouble(row.getCell(indexRiesgoCosto));
+                            licitacionRiesgo.setMontoCotizado(montoCotizado);
+                        }
+                    }
+                }
+
+                if(indicesAdjudicadoCosto != null) {
 // monto adjudicado por riesgo (AdjudicadoCosto1/2/3 -> primer, segundo y tercer riesgo)
-                if (indiceRiesgo < indicesAdjudicadoCosto.size()) {
-                    Integer indexAdjudicadoCosto = indicesAdjudicadoCosto.get(indiceRiesgo);
+                    if (indiceRiesgo < indicesAdjudicadoCosto.size()) {
+                        Integer indexAdjudicadoCosto = indicesAdjudicadoCosto.get(indiceRiesgo);
 
-                    if (indexAdjudicadoCosto != null) {
-                        Double montoAdjudicadoRiesgo = lectorCeldas.leerComoDouble(row.getCell(indexAdjudicadoCosto));
+                        if (indexAdjudicadoCosto != null) {
+                            Double montoAdjudicadoRiesgo = lectorCeldas.leerComoDouble(row.getCell(indexAdjudicadoCosto));
 
-                        if (montoAdjudicadoRiesgo != null) {
-                            licitacionRiesgo.setMontoAdjudicado(montoAdjudicadoRiesgo);
+                            if (montoAdjudicadoRiesgo != null) {
+                                licitacionRiesgo.setMontoAdjudicado(montoAdjudicadoRiesgo);
+                            }
                         }
                     }
                 }
@@ -684,17 +748,5 @@ public class InsertorDatos {
         }
 
         this.entidadLicitacionRepository.save(licitacion);
-    }
-
-    private List<String> leerHeadersDelExcel(String ruta) {
-
-        try (FileInputStream fis = new FileInputStream(ruta);
-             Workbook workbook = new XSSFWorkbook(fis)) {
-
-            return lectorCeldas.leerHeaders(workbook);
-
-        } catch (Exception e) {
-            throw MensajesError.errorLecturaHeaders(e.getMessage(), e);
-        }
     }
 }

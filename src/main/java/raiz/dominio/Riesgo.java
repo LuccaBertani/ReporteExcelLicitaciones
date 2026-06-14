@@ -14,6 +14,10 @@ public class Riesgo {
     @Column(name = "detalle", nullable = false)
     private String detalle;
 
+    @ManyToOne
+    @JoinColumn(name = "id_ramo")
+    private Ramo ramo;
+
     public Riesgo() {
     }
 

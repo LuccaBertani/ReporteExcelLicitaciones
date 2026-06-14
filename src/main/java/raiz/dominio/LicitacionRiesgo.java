@@ -37,6 +37,10 @@ public class LicitacionRiesgo {
     @Column(name = "montoCotizado")
     private Double montoCotizado;
 
+    @ManyToOne
+    @JoinColumn(name = "id_moneda")
+    private Moneda moneda;
+
     @Column(name = "motivo")
     private String motivo;
 
