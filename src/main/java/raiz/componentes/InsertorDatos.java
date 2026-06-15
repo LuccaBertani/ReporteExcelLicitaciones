@@ -53,7 +53,7 @@ public class InsertorDatos {
 
     @PostConstruct
     public void init() {
-        this.gestorRiesgos = new GestorRiesgos(this.entidadRiesgoRepository);
+        this.gestorRiesgos = new GestorRiesgos(this.entidadRiesgoRepository, this.renglonRiesgos);
     }
 
     @Transactional
@@ -62,7 +62,7 @@ public class InsertorDatos {
         try (FileInputStream fis = new FileInputStream(rutaArchivo);
              Workbook workbook = new XSSFWorkbook(fis)) {
 
-        // Obtenemos la primera hoja del Excel
+        //Primera hoja del excel
             Sheet sheet = workbook.getSheetAt(0);
             Iterator<Row> rows = sheet.iterator();
 
@@ -128,7 +128,9 @@ public class InsertorDatos {
                     );
                 }
 
-                this.almacenarLicitacion(currentRow, mes, cliente, moneda, status, adjudicada, indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
+                IndicesLicitacion indicesLicitacion = new IndicesLicitacion(indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
+
+                this.almacenarLicitacion(currentRow, mes, cliente, moneda, status, adjudicada, indicesLicitacion);
             }
 
             System.out.println("¡Importación completada con éxito!");
@@ -213,6 +215,8 @@ public class InsertorDatos {
     }
 
     private void almacenarRiesgo(Row row, Integer indexRiesgo, Ramo ramo) {
+
+        System.out.println("#### Cargando riesgo");
 
         String renglonRiesgo = lectorCeldas.leerComoTexto(row, indexRiesgo);
 
@@ -305,19 +309,18 @@ public class InsertorDatos {
 
     }
 
-    private void almacenarLicitacion(Row row, Mes mes, Cliente cliente, Moneda moneda, Status status, EntidadAdjudicada adjudicada, Integer indexNumeroCompulsa, Integer indexRiesgo, Integer indexFecha, Integer indexMotivo, Integer indexMontoAdjudicado, Integer indexMontoCotizado, List<Integer> indicesRiesgoCosto, List<Integer> indicesAdjudicadoCosto) {
+    private void almacenarLicitacion(Row row, Mes mes, Cliente cliente, Moneda moneda, Status status, EntidadAdjudicada adjudicada, IndicesLicitacion indicesLicitacion) {
 
         Licitacion licitacion;
-        String numero_str = lectorCeldas.leerComoTexto(row, indexNumeroCompulsa);
+        String numero_str = lectorCeldas.leerComoTexto(row, indicesLicitacion.getIndexNumeroCompulsa());
 
-        System.out.println("NUMERO DE COMPULSA:" + numero_str);
+        System.out.println("#### Procesando licitacion num " +  numero_str);
 
         if(this.entidadLicitacionRepository.findByNumeroCompulsa(numero_str).isPresent()) {
 
             licitacion = this.entidadLicitacionRepository.findByNumeroCompulsa(numero_str).orElse(null);
 
             if(licitacion == null) {
-                System.out.println("Como entras a aca animal");
                 return;
             }
 
@@ -327,20 +330,19 @@ public class InsertorDatos {
             licitacion.setCliente(cliente);
         }
 
-        String riesgos_compactados_str = lectorCeldas.leerComoTexto(row, indexRiesgo);
-
-        System.out.println("Riesgos compactados:" + riesgos_compactados_str);
+        String riesgos_compactados_str = lectorCeldas.leerComoTexto(row, indicesLicitacion.getIndexRiesgo());
 
         List<String> riesgos_str = this.gestorRiesgos.obtenerTokens(riesgos_compactados_str);
 
         int indiceRiesgo = 0;
 
+        System.out.println("Riesgos encontrados: " + riesgos_str);
+
         for(String riesgo_str : riesgos_str){
 
-            System.out.println("SINONIMO DE RIESGO ENCONTRADO: " + riesgo_str);
+            System.out.println("Riesgo num " + indiceRiesgo + 1 + ": " + riesgo_str);
 
             if(riesgo_str.equalsIgnoreCase("SEGURO TECNICO")){
-                System.out.println("SOY UN ESTORBO, AVANZO CON EL SIGUIENTE!");
                 continue;
             }
 
@@ -348,26 +350,29 @@ public class InsertorDatos {
 
             if(riesgo != null) {
 
-                System.out.println("RIESGO MATCHEADO: " + riesgo.getDetalle());
-
                 LicitacionRiesgo licitacionRiesgo = new LicitacionRiesgo();
                 licitacionRiesgo.setRiesgo(riesgo);
                 licitacionRiesgo.setStatus(status);
                 licitacionRiesgo.setAdjudicada(adjudicada);
-                licitacionRiesgo.setFecha(lectorCeldas.leerFecha(row, indexFecha));
+                licitacionRiesgo.setFecha(lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha()));
                 licitacionRiesgo.setMes(mes);
                 licitacionRiesgo.setMoneda(moneda);
+
+                Integer indexMotivo = indicesLicitacion.getIndexMotivo();
 
                 Cell motivoCelda = (indexMotivo != null) ? row.getCell(indexMotivo) : null;
 
                 if (motivoCelda == null || motivoCelda.getCellType() == CellType.BLANK) {
-                    System.out.println("Saltando fila: El motivo de la compulsa está vacío.");
+                    System.out.println("El motivo de la compulsa está vacío.");
                 } else {
                     String motivo_str = lectorCeldas.leerCeldaRecortada(row, indexMotivo);
+                    System.out.println("Motivo: " + motivo_str);
                     licitacionRiesgo.setMotivo(motivo_str);
                 }
 
                 licitacionRiesgo.setLicitacion(licitacion);
+
+                Integer indexMontoAdjudicado = indicesLicitacion.getIndexMontoAdjudicado();
 
 //monto adjudicado
                 Cell celdaMontoAdjudicado = (indexMontoAdjudicado != null) ? row.getCell(indexMontoAdjudicado) : null;
@@ -385,6 +390,8 @@ public class InsertorDatos {
                     licitacionRiesgo.setTipoAdjudicacion(this.entidadTipoAdjudicacionRepository.findByDetalle("DEJADA SIN EFECTO"));
                 }
 
+                Integer indexMontoCotizado = indicesLicitacion.getIndexMontoCotizado();
+
                 //monto cotizado
                 if (indexMontoCotizado != null) {
 
@@ -394,6 +401,8 @@ public class InsertorDatos {
                         licitacionRiesgo.setMontoCotizado(celdaMontoCotizado.getNumericCellValue());
                     }
                 }
+
+                List<Integer> indicesRiesgoCosto = indicesLicitacion.getIndicesRiesgoCosto();
 
 // monto cotizado (RiesgoCosto1 -> primer riesgo, RiesgoCosto2 -> segundo riesgo)
                 if(indicesRiesgoCosto != null) {
@@ -406,6 +415,8 @@ public class InsertorDatos {
                         }
                     }
                 }
+
+                List<Integer> indicesAdjudicadoCosto = indicesLicitacion.getIndicesAdjudicadoCosto();
 
                 if(indicesAdjudicadoCosto != null) {
 // monto adjudicado por riesgo (AdjudicadoCosto1/2/3 -> primer, segundo y tercer riesgo)
@@ -578,175 +589,4 @@ public class InsertorDatos {
         }
     }
 
-    @Transactional
-    public void actualizarBDcon2doExcel(String rutaArchivo) {
-
-        try (FileInputStream fis = new FileInputStream(rutaArchivo);
-             Workbook workbook = new XSSFWorkbook(fis)) {
-
-// Obtenemos la primera hoja del Excel
-            Sheet sheet = workbook.getSheetAt(0);
-            Iterator<Row> rows = sheet.iterator();
-
-// Saltamos la primera fila si tiene encabezados (Títulos)
-            if (rows.hasNext()) rows.next();
-
-            while (rows.hasNext()) {
-                Row currentRow = rows.next();
-
-                // FILTRO 1: ¿La fila es nula?
-                if (currentRow == null) continue;
-
-                // FILTRO 2: ¿La celda de la compulsa tiene algo?
-                Cell cellCompulsa = currentRow.getCell(5);
-                if (cellCompulsa == null || cellCompulsa.getCellType() == CellType.BLANK) {
-                    continue;
-                }
-
-                // FILTRO 3: ¿El texto de la compulsa es válido?
-                String num_compulsa = lectorCeldas.leerComoTexto(currentRow, 5).trim();
-                if (num_compulsa.isEmpty() || num_compulsa.equals("0")) { // A veces lee ceros fantasma
-                    continue;
-                }
-
-                System.out.println("Procesando fila: " + currentRow.getRowNum() + " - Compulsa: " + num_compulsa);
-
-                // Si pasó los filtros, procesamos
-                this.almacenarDatosRestantesLicitacion(currentRow);
-            }
-
-            System.out.println("¡Actualizacion completada con éxito!");
-
-        } catch (Exception e) {
-
-            System.err.println("Error al procesar el Excel: " + e.getMessage());
-
-            e.printStackTrace();
-        }
-
-    }
-
-    //              0      1      2     3             4              5       6       7        8           9           10      11       12       13         14         15        16         17             18           19            20       21
-    // header = [Seccion, Mes, Fecha, CUIT, TIPO DE CONTRATACION, Numero, Cliente, Riesgo, Renglon, Monto cotizado, Status, Ganada, Perdida, Renglon 1, Renglon 2, desistida, Motivo, AdjudicadoA, MontoAdjudicado, renglon 1, renglon 2, renglon 3]
-    @Transactional
-    private void almacenarDatosRestantesLicitacion(Row currentRow) {
-
-        String num_compulsa = lectorCeldas.leerComoTexto(currentRow, 5);
-
-        System.out.println("numero de compulsa: " +  num_compulsa);
-
-        Licitacion licitacion = this.entidadLicitacionRepository.findByNumeroCompulsa(num_compulsa).orElse(null);
-
-        if(licitacion == null){
-            throw MensajesError.licitacionNoEncontrada(num_compulsa);
-        }
-
-        int j = 0;
-
-        List<LicitacionRiesgo> coincidenciasEncontradas = new ArrayList<>();
-
-        for (LicitacionRiesgo licitacionRiesgo : licitacion.getRiesgosAsignados()) {
-
-            System.out.println(j + " licitacionRiesgo a analizar");
-
-            Date date_excel = lectorCeldas.leerFecha(currentRow, 2);
-
-            if (!(licitacionRiesgo.getFecha().compareTo(date_excel) == 0)) {
-                System.out.println("Fallo la fecha");
-                j++;
-                continue;
-            }
-
-            String motivoExcel = lectorCeldas.leerCeldaRecortada(currentRow, 16);
-
-            String motivoDB = (licitacionRiesgo.getMotivo() == null) ? "" : licitacionRiesgo.getMotivo();
-
-            if (!motivoDB.equals(motivoExcel)) {
-                System.out.println("Fallo el motivo: DB[" + motivoDB + "] vs Excel[" + motivoExcel + "]");
-                j++;
-                continue;
-            }
-
-            String mes_str = lectorCeldas.leerCeldaRecortada(currentRow, 1);
-
-            if (!licitacionRiesgo.getMes().getDetalle().equals(mes_str)) {
-                System.out.println("Fallo el mes: DB[" + licitacionRiesgo.getMes().getDetalle() + "] vs Excel[" + mes_str + "]");
-                j++;
-                continue;
-            }
-
-            String status_str = lectorCeldas.leerComoTexto(currentRow, 10);
-
-            if (!licitacionRiesgo.getStatus().getDetalle().equals(status_str)) {
-                System.out.println("Fallo el status");
-                j++;
-                continue;
-            }
-
-            String adjudicada_str = lectorCeldas.leerComoTexto(currentRow, 17);
-
-            if (!licitacionRiesgo.getAdjudicada().getDetalle().equals(adjudicada_str)) {
-                System.out.println("Fallo la adjudicada: DB[" + licitacionRiesgo.getAdjudicada().getDetalle() + "] vs Excel[" + adjudicada_str + "]");
-                j++;
-                continue;
-            }
-
-            j++;
-            coincidenciasEncontradas.add(licitacionRiesgo);
-        }
-        if (coincidenciasEncontradas.isEmpty()) {
-            throw MensajesError.coincidenciaLicitacionRiesgoNoEncontrada(licitacion.getNumeroCompulsa());
-        }
-
-
-        String riesgosCompactados = currentRow.getCell(7).getStringCellValue();
-
-        List<String> riesgos_str = this.gestorRiesgos.obtenerTokens(riesgosCompactados);
-
-        int i = 0;
-
-        for(String riesgo_str : riesgos_str){
-
-            Riesgo riesgoAsociadoAlToken = this.gestorRiesgos.resolverRiesgo(riesgo_str);
-
-            if(riesgoAsociadoAlToken == null){
-                throw MensajesError.riesgoNoEncontrado();
-            }
-
-            LicitacionRiesgo licitacionRiesgo = coincidenciasEncontradas.stream().filter(l -> l.getRiesgo().equals(riesgoAsociadoAlToken)).findFirst().orElse(null);
-
-            if(licitacionRiesgo == null){
-                throw MensajesError.licitacionPorRiesgoNoEncontrada(riesgo_str);
-            }
-
-            if (i < 2) {
-                Cell celdaMonto = currentRow.getCell(13 + i);
-                Double valorCotizado = lectorCeldas.leerComoDouble(celdaMonto);
-
-                if (valorCotizado != null) {
-                    licitacionRiesgo.setMontoCotizado(valorCotizado);
-                } else {
-                    // Si la celda 13 o 14 falla, intenta el respaldo de la columna 9
-                    licitacionRiesgo.setMontoCotizado(lectorCeldas.leerComoDouble(currentRow.getCell(9)));
-                }
-            }
-
-// 2. MONTO ADJUDICADO (Para riesgos 1, 2 y 3 -> columnas 19, 20, 21)
-            if (i < 3) {
-                Cell celdaMontoAdj = currentRow.getCell(19 + i);
-                Double valorAdj = lectorCeldas.leerComoDouble(celdaMontoAdj);
-
-                if (valorAdj != null) {
-                    licitacionRiesgo.setMontoAdjudicado(valorAdj);
-                    System.out.println("Guardando Adjudicado Riesgo " + (i+1) + ": " + valorAdj);
-                } else {
-                    System.out.println("Riesgo " + (i+1) + " sin monto adjudicado (celda vacía o null)");
-                }
-            }
-
-            i++;
-        }
-
-        this.entidadLicitacionRepository.save(licitacion);
-    }
 }

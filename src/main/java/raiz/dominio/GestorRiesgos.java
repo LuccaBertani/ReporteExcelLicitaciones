@@ -16,10 +16,12 @@ import java.util.stream.Collectors;
 public class GestorRiesgos {
 
     private final Map<String, List<String>> sinonimos;
+    private final List<String> nombresOficiales;
     private final IRiesgo entidadRiesgoRepository;
 
-    public GestorRiesgos(IRiesgo entidadRiesgoRepository) {
+    public GestorRiesgos(IRiesgo entidadRiesgoRepository, List<String> nombresOficiales) {
         this.entidadRiesgoRepository = entidadRiesgoRepository;
+        this.nombresOficiales = nombresOficiales;
         this.sinonimos = cargarSinonimos();
     }
 
@@ -53,8 +55,10 @@ public class GestorRiesgos {
         String nombreOficial = this.resolverNombreOficial(token);
 
         if (nombreOficial != null) {
+            System.out.println("Se encontro el riesgo: " + nombreOficial);
             return this.entidadRiesgoRepository.findByDetalle(nombreOficial).orElse(null);
         }
+        System.out.println("No se encontro el riesgo: " + token);
 
         return this.entidadRiesgoRepository.findByDetalle(token).orElse(null);
     }
@@ -62,15 +66,26 @@ public class GestorRiesgos {
     /**
      * Traduce un token (sinónimo o nombre oficial) al nombre oficial del
      * Riesgo, sin depender de que ese Riesgo ya exista en base de datos.
+     * Primero busca coincidencia directa contra los nombres oficiales
+     * (renglonRiesgos); si no matchea, busca entre los sinónimos conocidos.
      * La comparación se hace normalizando tildes, espacios y mayúsculas
      * en ambos lados.
      *
      * @return el nombre oficial, o null si el token no coincide con ningún
-     * sinónimo conocido.
+     * nombre oficial ni sinónimo conocido.
      */
     public String resolverNombreOficial(String token) {
 
         String tokenNormalizado = Normalizador.limpiarTexto(token);
+
+        String nombreOficial = this.nombresOficiales.stream()
+                .filter(nombre -> Normalizador.limpiarTexto(nombre).equals(tokenNormalizado))
+                .findFirst()
+                .orElse(null);
+
+        if (nombreOficial != null) {
+            return nombreOficial;
+        }
 
         return this.sinonimos.entrySet()
                 .stream()
@@ -91,7 +106,7 @@ public class GestorRiesgos {
         sinonimos.put("RC GUARDA/DEPOSITO", Arrays.asList("RC Guarda/Deposito", "RC Guarda y Deposito", "Guarda y Deposito"));
         sinonimos.put("RC CARTELES", Arrays.asList("RC Carteles", "Carteles"));
         sinonimos.put("INCENDIO", List.of("Incendio"));
-        sinonimos.put("TECNICO EQ. ELECTRONICOS", Arrays.asList("ST EE", "ST", "ST TR", "TR Equipos Electrónicos"));
+        sinonimos.put("TECNICO EQ. ELECTRONICOS", Arrays.asList("ST EE", "ST", "ST TR", "TR Equipos Electrónicos", "ST Eq. Electrónicos"));
         sinonimos.put("APC", Arrays.asList("ACCIDENTES PERSONALES", "APC"));
         sinonimos.put("ROBO Y RIESGOS SIMILARES", Arrays.asList("Robo", "Robo Drones"));
         sinonimos.put("VALORES EN TRANSITO", Arrays.asList("ROBO DE VALORES", "Valores en Transito"));
