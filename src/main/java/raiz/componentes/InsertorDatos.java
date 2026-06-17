@@ -309,6 +309,36 @@ public class InsertorDatos {
 
     }
 
+    /**
+     * Busca, dentro de los riesgos ya asignados a la licitación, uno que
+     * coincida en riesgo + fecha + status. Esto evita crear un
+     * LicitacionRiesgo duplicado al reimportar el mismo Excel: si ya existe
+     * una coincidencia, se actualiza esa fila en lugar de insertar una nueva.
+     */
+    private LicitacionRiesgo buscarLicitacionRiesgoExistente(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status) {
+
+        for (LicitacionRiesgo existente : licitacion.getRiesgosAsignados()) {
+
+            boolean mismoRiesgo = existente.getRiesgo() != null
+                    && riesgo != null
+                    && existente.getRiesgo().getId().equals(riesgo.getId());
+
+            boolean mismoStatus = (existente.getStatus() == null && status == null)
+                    || (existente.getStatus() != null && status != null
+                        && existente.getStatus().getId().equals(status.getId()));
+
+            boolean mismaFecha = (existente.getFecha() == null && fecha == null)
+                    || (existente.getFecha() != null && fecha != null
+                        && existente.getFecha().compareTo(fecha) == 0);
+
+            if (mismoRiesgo && mismoStatus && mismaFecha) {
+                return existente;
+            }
+        }
+
+        return null;
+    }
+
     private void almacenarLicitacion(Row row, Mes mes, Cliente cliente, Moneda moneda, Status status, EntidadAdjudicada adjudicada, IndicesLicitacion indicesLicitacion) {
 
         Licitacion licitacion;
@@ -350,11 +380,22 @@ public class InsertorDatos {
 
             if(riesgo != null) {
 
-                LicitacionRiesgo licitacionRiesgo = new LicitacionRiesgo();
+                Date fechaRiesgo = lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha());
+
+                LicitacionRiesgo licitacionRiesgo = this.buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status);
+
+                boolean esNuevo = (licitacionRiesgo == null);
+
+                if (esNuevo) {
+                    licitacionRiesgo = new LicitacionRiesgo();
+                } else {
+                    System.out.println("LicitacionRiesgo ya existente (riesgo=" + riesgo.getDetalle() + ", fecha=" + fechaRiesgo + ", status=" + (status != null ? status.getDetalle() : null) + ") -> se actualiza en lugar de duplicar.");
+                }
+
                 licitacionRiesgo.setRiesgo(riesgo);
                 licitacionRiesgo.setStatus(status);
                 licitacionRiesgo.setAdjudicada(adjudicada);
-                licitacionRiesgo.setFecha(lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha()));
+                licitacionRiesgo.setFecha(fechaRiesgo);
                 licitacionRiesgo.setMes(mes);
                 licitacionRiesgo.setMoneda(moneda);
 
@@ -433,7 +474,9 @@ public class InsertorDatos {
                     }
                 }
 
-                licitacion.getRiesgosAsignados().add(licitacionRiesgo);
+                if (esNuevo) {
+                    licitacion.getRiesgosAsignados().add(licitacionRiesgo);
+                }
 
                 indiceRiesgo++;
             }
