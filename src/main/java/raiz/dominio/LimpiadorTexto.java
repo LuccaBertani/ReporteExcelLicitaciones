@@ -26,4 +26,27 @@ public class LimpiadorTexto {
                 .trim()
                 .toUpperCase();
     }
+
+    /**
+     * Normaliza un texto a formato "primera letra mayúscula, resto minúscula"
+     * (Ej: "POR PRECIO" o "por precio" -> "Por precio"). Útil para guardar
+     * valores consistentes en base sin importar cómo vengan capitalizados
+     * en el Excel de origen.
+     */
+    public static String capitalizar(String texto) {
+
+        if (texto == null) {
+            return null;
+        }
+
+        String textoRecortado = texto.trim();
+
+        if (textoRecortado.isEmpty()) {
+            return textoRecortado;
+        }
+
+        String minuscula = textoRecortado.toLowerCase();
+
+        return Character.toUpperCase(minuscula.charAt(0)) + minuscula.substring(1);
+    }
 }

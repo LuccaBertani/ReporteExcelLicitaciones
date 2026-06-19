@@ -44,6 +44,9 @@ public class LicitacionRiesgo {
     @Column(name = "motivo")
     private String motivo;
 
+    @Column(name = "estadoMotivo")
+    private String estadoMotivo;
+
     @ManyToOne
     @JoinColumn(name = "id_adjudicada")
     private EntidadAdjudicada adjudicada;

@@ -99,6 +99,7 @@ public class InsertorDatos {
                 Integer indexRiesgo = headerGestor.getHeaderIndex("Riesgo");
                 Integer indexFecha = headerGestor.getHeaderIndex("Fecha");
                 Integer indexMotivo = headerGestor.getHeaderIndex("Motivo");
+                Integer indexEstadoMotivo = headerGestor.getHeaderIndex("estadoMotivo");
                 Integer indexMontoAdjudicado = headerGestor.getHeaderIndex("MontoAdjudicado");
                 Integer indexMontoCotizado = headerGestor.getHeaderIndex("MontoCotizado");
 
@@ -128,7 +129,7 @@ public class InsertorDatos {
                     );
                 }
 
-                IndicesLicitacion indicesLicitacion = new IndicesLicitacion(indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
+                IndicesLicitacion indicesLicitacion = new IndicesLicitacion(indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexEstadoMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
 
                 this.almacenarLicitacion(currentRow, mes, cliente, moneda, status, adjudicada, indicesLicitacion);
             }
@@ -406,9 +407,21 @@ public class InsertorDatos {
                 if (motivoCelda == null || motivoCelda.getCellType() == CellType.BLANK) {
                     System.out.println("El motivo de la compulsa está vacío.");
                 } else {
-                    String motivo_str = lectorCeldas.leerCeldaRecortada(row, indexMotivo);
+                    String motivo_str = LimpiadorTexto.capitalizar(lectorCeldas.leerCeldaRecortada(row, indexMotivo));
                     System.out.println("Motivo: " + motivo_str);
                     licitacionRiesgo.setMotivo(motivo_str);
+                }
+
+                Integer indexEstadoMotivo = indicesLicitacion.getIndexEstadoMotivo();
+
+                Cell estadoMotivoCelda = (indexEstadoMotivo != null) ? row.getCell(indexEstadoMotivo) : null;
+
+                if (estadoMotivoCelda == null || estadoMotivoCelda.getCellType() == CellType.BLANK) {
+                    System.out.println("El estado del motivo de la compulsa está vacío.");
+                } else {
+                    String estadoMotivo_str = LimpiadorTexto.capitalizar(lectorCeldas.leerCeldaRecortada(row, indexEstadoMotivo));
+                    System.out.println("Estado Motivo: " + estadoMotivo_str);
+                    licitacionRiesgo.setEstadoMotivo(estadoMotivo_str);
                 }
 
                 licitacionRiesgo.setLicitacion(licitacion);

@@ -15,6 +15,7 @@ public class IndicesLicitacion {
     private Integer indexRiesgo;
     private Integer indexFecha;
     private Integer indexMotivo;
+    private Integer indexEstadoMotivo;
     private Integer indexMontoAdjudicado;
     private Integer indexMontoCotizado;
     private List<Integer> indicesRiesgoCosto;
