@@ -103,15 +103,15 @@ public class InsertorDatos {
                 Integer indexMontoAdjudicado = headerGestor.getHeaderIndex("MontoAdjudicado");
                 Integer indexMontoCotizado = headerGestor.getHeaderIndex("MontoCotizado");
 
-                Integer riesgoCosto1Header = headerGestor.getHeaderIndex("RiesgoCosto1");
-                Integer riesgoCosto2Header = headerGestor.getHeaderIndex("RiesgoCosto2");
+                Integer CotizadoCosto1Header = headerGestor.getHeaderIndex("CotizadoCosto1");
+                Integer CotizadoCosto2Header = headerGestor.getHeaderIndex("CotizadoCosto2");
 
                 List<Integer> indicesRiesgoCosto = null;
 
-                if(riesgoCosto1Header != null && riesgoCosto2Header != null) {
+                if(CotizadoCosto1Header != null && CotizadoCosto2Header != null) {
                     indicesRiesgoCosto = List.of(
-                            riesgoCosto1Header,
-                            riesgoCosto2Header
+                            CotizadoCosto1Header,
+                            CotizadoCosto2Header
                     );
                 }
 
@@ -461,10 +461,10 @@ public class InsertorDatos {
 // monto cotizado (RiesgoCosto1 -> primer riesgo, RiesgoCosto2 -> segundo riesgo)
                 if(indicesRiesgoCosto != null) {
                     if (indiceRiesgo < indicesRiesgoCosto.size()) {
-                        Integer indexRiesgoCosto = indicesRiesgoCosto.get(indiceRiesgo);
+                        Integer indexCotizadoCosto = indicesRiesgoCosto.get(indiceRiesgo);
 
-                        if (indexRiesgoCosto != null) {
-                            Double montoCotizado = lectorCeldas.leerComoDouble(row.getCell(indexRiesgoCosto));
+                        if (indexCotizadoCosto != null) {
+                            Double montoCotizado = lectorCeldas.leerComoDouble(row.getCell(indexCotizadoCosto));
                             licitacionRiesgo.setMontoCotizado(montoCotizado);
                         }
                     }
