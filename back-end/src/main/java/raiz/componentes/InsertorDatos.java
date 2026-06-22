@@ -87,17 +87,55 @@ public class InsertorDatos {
             while (rows.hasNext()) {
 
                 Row currentRow = rows.next();
-                Moneda moneda = this.almacenarMoneda(currentRow, headerGestor.getHeaderIndex("moneda"));
-                Ramo ramo = this.almacenarRamo(currentRow, headerGestor.getHeaderIndex("ramo"));
-                this.almacenarRiesgo(currentRow, headerGestor.getHeaderIndex("riesgo"), ramo);
-                Mes mes = this.almacenarMes(currentRow, headerGestor.getHeaderIndex("Fecha"));
-                Cliente cliente = this.almacenarCliente(currentRow, headerGestor.getHeaderIndex("cliente"));
-                EntidadAdjudicada adjudicada = this.almacenarAdjudicadoA(currentRow, headerGestor.getHeaderIndex("adjudicadoA"));
-                Status status = this.almacenarStatus(currentRow, headerGestor.getHeaderIndex("status"));
+                // 1. Obtener y verificar el índice de Moneda
+                Integer indexMoneda = headerGestor.getHeaderIndex("moneda");
+                Moneda moneda = null;
+                if (indexMoneda != null) {
+                    moneda = this.almacenarMoneda(currentRow, indexMoneda);
+                }
+
+// 2. Obtener y verificar el índice de Ramo
+                Integer indexRamo = headerGestor.getHeaderIndex("ramo");
+                Ramo ramo = null;
+                if (indexRamo != null) {
+                    ramo = this.almacenarRamo(currentRow, indexRamo);
+                }
+
+// 3. Obtener y verificar el índice de Riesgo (depende de que 'ramo' también se haya procesado)
+                Integer indexRiesgo = headerGestor.getHeaderIndex("riesgo");
+                if (indexRiesgo != null) {
+                    this.almacenarRiesgo(currentRow, indexRiesgo, ramo);
+                }
+
+// 4. Obtener y verificar el índice de Fecha/Mes
+                Integer indexFecha = headerGestor.getHeaderIndex("Fecha");
+                Mes mes = null;
+                if (indexFecha != null) {
+                    mes = this.almacenarMes(currentRow, indexFecha);
+                }
+
+// 5. Obtener y verificar el índice de Cliente
+                Integer indexCliente = headerGestor.getHeaderIndex("cliente");
+                Cliente cliente = null;
+                if (indexCliente != null) {
+                    cliente = this.almacenarCliente(currentRow, indexCliente);
+                }
+
+// 6. Obtener y verificar el índice de Adjudicado
+                Integer indexAdjudicado = headerGestor.getHeaderIndex("adjudicadoA");
+                EntidadAdjudicada adjudicada = null;
+                if (indexAdjudicado != null) {
+                    adjudicada = this.almacenarAdjudicadoA(currentRow, indexAdjudicado);
+                }
+
+// 7. Obtener y verificar el índice de Status
+                Integer indexStatus = headerGestor.getHeaderIndex("status");
+                Status status = null;
+                if (indexStatus != null) {
+                    status = this.almacenarStatus(currentRow, indexStatus);
+                }
 
                 Integer indexNumeroCompulsa = headerGestor.getHeaderIndex("Numero");
-                Integer indexRiesgo = headerGestor.getHeaderIndex("Riesgo");
-                Integer indexFecha = headerGestor.getHeaderIndex("Fecha");
                 Integer indexMotivo = headerGestor.getHeaderIndex("Motivo");
                 Integer indexEstadoMotivo = headerGestor.getHeaderIndex("estadoMotivo");
                 Integer indexMontoAdjudicado = headerGestor.getHeaderIndex("MontoAdjudicado");
@@ -119,13 +157,11 @@ public class InsertorDatos {
 
                 Integer AdjudicadoCosto1Header = headerGestor.getHeaderIndex("AdjudicadoCosto1");
                 Integer AdjudicadoCosto2Header = headerGestor.getHeaderIndex("AdjudicadoCosto2");
-                Integer AdjudicadoCosto3Header = headerGestor.getHeaderIndex("AdjudicadoCosto3");
 
-                if(AdjudicadoCosto1Header != null &&  AdjudicadoCosto2Header != null &&  AdjudicadoCosto3Header != null) {
+                if(AdjudicadoCosto1Header != null &&  AdjudicadoCosto2Header != null) {
                     indicesAdjudicadoCosto = List.of(
                             AdjudicadoCosto1Header,
-                            AdjudicadoCosto2Header,
-                            AdjudicadoCosto3Header
+                            AdjudicadoCosto2Header
                     );
                 }
 
@@ -355,6 +391,10 @@ public class InsertorDatos {
                 return;
             }
 
+            // Cargar los riesgos existentes para poder matchear y actualizar en lugar de duplicar
+            List<LicitacionRiesgo> riesgosEnDB = this.licitacionRiesgoRepository.findByLicitacion(licitacion.getId());
+            licitacion.setRiesgosAsignados(new ArrayList<>(riesgosEnDB));
+
         } else {
             licitacion = new Licitacion();
             licitacion.setNumeroCompulsa(numero_str);
@@ -383,14 +423,12 @@ public class InsertorDatos {
 
                 Date fechaRiesgo = lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha());
 
-                LicitacionRiesgo licitacionRiesgo = this.buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status);
-
+                // Buscar si ya existe un LicitacionRiesgo para este riesgo+status+fecha
+                // Si existe, actualizarlo en lugar de crear uno nuevo
+                LicitacionRiesgo licitacionRiesgo = buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status);
                 boolean esNuevo = (licitacionRiesgo == null);
-
                 if (esNuevo) {
                     licitacionRiesgo = new LicitacionRiesgo();
-                } else {
-                    System.out.println("LicitacionRiesgo ya existente (riesgo=" + riesgo.getDetalle() + ", fecha=" + fechaRiesgo + ", status=" + (status != null ? status.getDetalle() : null) + ") -> se actualiza en lugar de duplicar.");
                 }
 
                 licitacionRiesgo.setRiesgo(riesgo);
@@ -399,6 +437,7 @@ public class InsertorDatos {
                 licitacionRiesgo.setFecha(fechaRiesgo);
                 licitacionRiesgo.setMes(mes);
                 licitacionRiesgo.setMoneda(moneda);
+                licitacionRiesgo.setLicitacion(licitacion);
 
                 Integer indexMotivo = indicesLicitacion.getIndexMotivo();
 
@@ -423,8 +462,6 @@ public class InsertorDatos {
                     System.out.println("Estado Motivo: " + estadoMotivo_str);
                     licitacionRiesgo.setEstadoMotivo(estadoMotivo_str);
                 }
-
-                licitacionRiesgo.setLicitacion(licitacion);
 
                 Integer indexMontoAdjudicado = indicesLicitacion.getIndexMontoAdjudicado();
 
@@ -473,12 +510,19 @@ public class InsertorDatos {
                 List<Integer> indicesAdjudicadoCosto = indicesLicitacion.getIndicesAdjudicadoCosto();
 
                 if(indicesAdjudicadoCosto != null) {
+
+                    indicesAdjudicadoCosto.forEach(i -> System.out.println("IndiceAdjudicado: " + i));
+
 // monto adjudicado por riesgo (AdjudicadoCosto1/2/3 -> primer, segundo y tercer riesgo)
                     if (indiceRiesgo < indicesAdjudicadoCosto.size()) {
                         Integer indexAdjudicadoCosto = indicesAdjudicadoCosto.get(indiceRiesgo);
 
+                        System.out.println("IndiceAdjudicado: " + indexAdjudicadoCosto);
+
                         if (indexAdjudicadoCosto != null) {
                             Double montoAdjudicadoRiesgo = lectorCeldas.leerComoDouble(row.getCell(indexAdjudicadoCosto));
+
+                            System.out.println("montoLeido:  " + montoAdjudicadoRiesgo);
 
                             if (montoAdjudicadoRiesgo != null) {
                                 licitacionRiesgo.setMontoAdjudicado(montoAdjudicadoRiesgo);

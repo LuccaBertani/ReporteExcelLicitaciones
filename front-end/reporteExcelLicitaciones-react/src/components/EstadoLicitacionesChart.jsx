@@ -48,7 +48,7 @@ function TooltipEstado({ active, payload }) {
 export default function EstadoLicitacionesChart({ data }) {
   const rows = (data ?? []).map((row) => ({
     estado: row.estado_licitacion,
-    cantidad: num(row.cantidad_licitaciones),
+    cantidad: num(row.cantidad_compulsas),
   }))
 
   const colorFor = (estado, index) =>

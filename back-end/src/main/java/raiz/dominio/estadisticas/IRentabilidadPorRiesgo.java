@@ -7,5 +7,8 @@ public interface IRentabilidadPorRiesgo {
     Double getCant_cotizada();
     Double getCant_ganada();
     String getPorcentaje_beneficio();
+    String getLicitaciones_ganadas();
+    String getLicitaciones_totales();
+    String getWinrate();
 
 }

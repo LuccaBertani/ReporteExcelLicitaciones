@@ -3,6 +3,6 @@ package raiz.dominio.estadisticas;
 public interface IMotivoGanada {
 
     String getMotivo_ganada();
-    Long getCantidad_licitaciones();
+    Long getCantidad_compulsas();
 
 }

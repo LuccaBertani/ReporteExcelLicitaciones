@@ -37,7 +37,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
 
     @Query(value = "SELECT \n" +
             "    FORMAT(\n" +
-            "        (COUNT(DISTINCT id_licitacion) / (SELECT COUNT(*) FROM licitacion_riesgo WHERE id_status <> 2)) * 100, \n" +
+            "        (COUNT(*) / (SELECT COUNT(*) FROM licitacion_riesgo WHERE id_status <> 2)) * 100, \n" +
             "        2, \n" +
             "        'de_DE'\n" +
             "    ) AS winrate \n" +
@@ -59,7 +59,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
 
     @Query(value = "WITH RankingsComoCTE AS (\n" +
             "    SELECT \n" +
-            "        cl.detalle AS compania,\n" +
+            "        e_a.detalle AS compania,\n" +
             "        r.detalle AS riesgo,\n" +
             "        SUM(l_r.monto_cotizado) AS monto_cotizado,\n" +
             "        SUM(l_r.monto_adjudicado) AS monto_adjudicado,\n" +
@@ -70,8 +70,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FROM licitacion_riesgo AS l_r\n" +
             "    INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
-            "    INNER JOIN cliente AS cl ON cl.id = l.id_cliente\n" +
-            "    GROUP BY cl.detalle, r.detalle\n" +
+            "    INNER JOIN entidad_adjudicada AS e_a ON e_a.id = l_r.id_adjudicada\n" +
+            "    GROUP BY e_a.detalle, r.detalle\n" +
             "),\n" +
             "TopCotizado AS (\n" +
             "    SELECT \n" +
@@ -109,23 +109,23 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "WITH TotalPorCliente AS (\n" +
             "    SELECT \n" +
             "        l.id_cliente,\n" +
-            "        COUNT(DISTINCT CASE WHEN s.detalle <> 'Desistida' THEN l.id END) AS total_licitaciones,\n" +
-            "        COUNT(DISTINCT CASE WHEN s.detalle = 'Ganada' THEN l.id END) AS ganadas\n" +
+            "        COUNT(CASE WHEN s.detalle <> 'Desistida' THEN l_r.id END) AS total_compulsas_participadas,\n" +
+            "        COUNT(CASE WHEN s.detalle = 'Ganada' THEN l_r.id END) AS ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
-            "    INNER JOIN Licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "    GROUP BY l.id_cliente\n" +
             "),\n" +
             "RankingClientes AS (\n" +
             "    SELECT \n" +
             "        cl.detalle AS cliente,\n" +
-            "        t.total_licitaciones,\n" +
-            "        FORMAT((t.ganadas * 100.0) / NULLIF(t.total_licitaciones, 0), 2, 'de_DE') AS tasa_exito_porcentaje,\n" +
-            "        ROW_NUMBER() OVER (ORDER BY t.total_licitaciones DESC) AS ranking\n" +
+            "        t.total_compulsas_participadas,\n" +
+            "        FORMAT((t.ganadas * 100.0) / NULLIF(t.total_compulsas_participadas, 0), 2, 'de_DE') AS tasa_exito_porcentaje,\n" +
+            "        ROW_NUMBER() OVER (ORDER BY t.total_compulsas_participadas DESC) AS ranking\n" +
             "    FROM TotalPorCliente AS t\n" +
             "    INNER JOIN cliente AS cl ON cl.id = t.id_cliente\n" +
             ")\n" +
-            "SELECT ranking, cliente, total_licitaciones, tasa_exito_porcentaje\n" +
+            "SELECT ranking, cliente, total_compulsas_participadas, tasa_exito_porcentaje\n" +
             "FROM RankingClientes\n" +
             "WHERE ranking <= 5", nativeQuery = true)
     List<ITopClientesTasaExito> getTopClientesTasaExito();
@@ -135,7 +135,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    ea.detalle AS competidor,\n" +
-            "    COUNT(DISTINCT l_r.id_licitacion) AS licitaciones_ganadas,\n" +
+            "    COUNT(*) AS compulsas_ganadas,\n" +
             "    FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS total_monto_ganado,\n" +
             "    FORMAT(\n" +
             "        SUM(l_r.monto_adjudicado) * 100.0 / SUM(SUM(l_r.monto_adjudicado)) OVER(), \n" +
@@ -147,7 +147,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "GROUP BY ea.detalle\n" +
             "HAVING SUM(l_r.monto_adjudicado) > 0\n" +
-            "ORDER BY licitaciones_ganadas DESC", nativeQuery = true)
+            "ORDER BY compulsas_ganadas DESC", nativeQuery = true)
     List<IFugasPorCompetidor> getFugasPorCompetidor();
 
     // ============================================================================
@@ -155,7 +155,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    l_r.motivo,\n" +
-            "    COUNT(DISTINCT l_r.id_licitacion) AS cantidad_casos,\n" +
+            "    COUNT(*) AS cantidad_casos,\n" +
             "    FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS monto_adjudicado_perdido\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
@@ -227,15 +227,20 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    id_mes, mes, cant_cotizada, cant_ganada, \n" +
-            "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio\n" +
+            "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio,\n" +
+            "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS compulsas_ganadas,\n" +
+            "    FORMAT((licitaciones_ganadas * 100.0) / NULLIF(licitaciones_totales, 0), 2, 'de_DE') AS winrate\n" +
             "FROM (\n" +
             "    SELECT \n" +
             "        l_r.id_mes, COALESCE(m.detalle, 'Sin Mes Asignado') AS mes,\n" +
             "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada\n" +
+            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "        COUNT(DISTINCT l.numero_compulsa) AS licitaciones_totales,\n" +
+            "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
-            "    LEFT JOIN Mes AS m ON m.id = l_r.id_mes\n" +
+            "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    WHERE s.detalle <> 'Desistida'\n" +
             "    GROUP BY l_r.id_mes, m.detalle\n" +
             ") AS subconsulta ORDER BY id_mes ASC", nativeQuery = true)
@@ -259,18 +264,25 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "SELECT \n" +
             "    id_riesgo, \n" +
             "    riesgo, \n" +
-            "    cant_cotizada, \n" +
-            "    cant_ganada, \n" +
-            "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio\n" +
+            "    FORMAT(cant_cotizada, 2, 'de_DE') AS cant_cotizada, \n" +
+            "    FORMAT(cant_ganada, 2, 'de_DE') AS cant_ganada, \n" +
+            "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio,\n" +
+            "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS licitaciones_ganadas,\n" +
+            "    FORMAT(licitaciones_totales, 0, 'de_DE') AS licitaciones_totales,\n" +
+            "    FORMAT((licitaciones_ganadas * 100.0) / NULLIF(licitaciones_totales, 0), 2, 'de_DE') AS winrate\n" +
             "FROM (\n" +
             "    SELECT \n" +
             "        l_r.id_riesgo, \n" +
             "        COALESCE(r.detalle, 'Sin Riesgo Asignado') AS riesgo,\n" +
             "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada\n" +
+            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "        -- Métricas de conteo de licitaciones\n" +
+            "        COUNT(l_r.id) AS licitaciones_totales,\n" +
+            "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "    -- Filtro estricto para ignorar las desistidas (por texto y por ID)\n" +
             "    WHERE s.detalle <> 'Desistida'\n" +
             "    GROUP BY l_r.id_riesgo, r.detalle\n" +
             ") AS subconsulta \n" +
@@ -282,7 +294,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    s.detalle AS estado_licitacion,\n" +
-            "    COUNT(DISTINCT l_r.id_licitacion) AS cantidad_licitaciones\n" +
+            "    COUNT(*) AS cantidad_compulsas\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "GROUP BY s.detalle", nativeQuery = true)
@@ -293,7 +305,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    COALESCE(l_r.motivo, 'Sin Motivo Especificado') AS motivo_ganada,\n" +
-            "    COUNT(DISTINCT l_r.id_licitacion) AS cantidad_licitaciones\n" +
+            "    COUNT(*) AS cantidad_compulsas\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Ganada'\n" +
@@ -356,7 +368,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     // G.1 RADIOGRAFÍA DE DESISTIDAS: CANTIDAD TOTAL DE PROCESOS DESISTIDOS
     // ============================================================================
-    @Query(value = "SELECT COUNT(DISTINCT l_r.id_licitacion) AS total_licitaciones_desistidas \n" +
+    @Query(value = "SELECT COUNT(*) AS total_compulsas_desistidas \n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status WHERE s.detalle = 'Desistida'", nativeQuery = true)
     ITotalDesistidas getTotalDesistidas();

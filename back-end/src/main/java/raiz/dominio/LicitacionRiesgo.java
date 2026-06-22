@@ -2,11 +2,13 @@ package raiz.dominio;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
 import java.util.Date;
 
 @Data
+@EqualsAndHashCode(exclude = "licitacion")
 @Entity
 @Table(name = "licitacion_riesgo")
 public class LicitacionRiesgo {
@@ -41,10 +43,10 @@ public class LicitacionRiesgo {
     @JoinColumn(name = "id_moneda")
     private Moneda moneda;
 
-    @Column(name = "motivo")
+    @Column(name = "motivo", length = 1000)
     private String motivo;
 
-    @Column(name = "estadoMotivo")
+    @Column(name = "estadoMotivo", length = 1000)
     private String estadoMotivo;
 
     @ManyToOne

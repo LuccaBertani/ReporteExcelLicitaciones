@@ -7,6 +7,9 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -61,8 +64,25 @@ public class LectorCeldas {
     }
 
     /**
-     * Lee el valor de tipo fecha de una celda, o null si la celda es nula
-     * o está vacía.
+     * Formatos de fecha en texto que aceptamos cuando la celda viene
+     * tipeada como STRING en vez de NUMERIC (caso común cuando la fecha
+     * fue pegada como texto o exportada desde otro sistema).
+     */
+    private static final DateTimeFormatter[] FORMATOS_FECHA_TEXTO = {
+            DateTimeFormatter.ofPattern("dd/MM/yyyy"),
+            DateTimeFormatter.ofPattern("d/M/yyyy"),
+            DateTimeFormatter.ofPattern("dd-MM-yyyy"),
+            DateTimeFormatter.ofPattern("yyyy-MM-dd"),
+    };
+
+    /**
+     * Lee el valor de tipo fecha de una celda, o null si la celda es nula,
+     * está vacía, o no se pudo interpretar como fecha.
+     *
+     * Soporta celdas NUMERIC (fecha real de Excel) y celdas STRING cuyo
+     * texto representa una fecha en alguno de los formatos habituales
+     * (dd/MM/yyyy, etc.), ya que algunas filas llegan con la fecha
+     * tipeada como texto en lugar de como valor numérico de fecha.
      */
     public java.sql.Date leerFecha(Row row, int index) {
 
@@ -76,7 +96,38 @@ public class LectorCeldas {
             return null;
         }
 
-        return new java.sql.Date(cell.getDateCellValue().getTime());
+        if (cell.getCellType() == CellType.STRING) {
+            return parsearFechaDesdeTexto(cell.getStringCellValue());
+        }
+
+        try {
+            return new java.sql.Date(cell.getDateCellValue().getTime());
+        } catch (IllegalStateException e) {
+            // Defensa adicional: si por algún motivo el tipo reportado no
+            // coincide con lo que POI puede convertir a fecha, intentamos
+            // como texto antes de rendirnos.
+            return parsearFechaDesdeTexto(formatter.formatCellValue(cell));
+        }
+    }
+
+    private java.sql.Date parsearFechaDesdeTexto(String texto) {
+
+        if (texto == null || texto.isBlank()) {
+            return null;
+        }
+
+        String valor = texto.trim();
+
+        for (DateTimeFormatter formato : FORMATOS_FECHA_TEXTO) {
+            try {
+                LocalDate fecha = LocalDate.parse(valor, formato);
+                return java.sql.Date.valueOf(fecha);
+            } catch (DateTimeParseException ignored) {
+                // probamos el siguiente formato
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -100,7 +151,11 @@ public class LectorCeldas {
                 return null;
             case STRING:
                 try {
-                    String val = cell.getStringCellValue().replace(",", ".");
+                    // Formato USA: coma como separador de miles, punto como
+                    // decimal (ej. "1,234.56"). Solo hace falta quitar las
+                    // comas de miles; el punto decimal ya es válido para
+                    // Double.parseDouble.
+                    String val = cell.getStringCellValue().replace(",", "").trim();
                     return Double.parseDouble(val);
                 } catch (Exception e) {
                     return null;

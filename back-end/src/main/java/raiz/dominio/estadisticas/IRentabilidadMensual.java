@@ -7,5 +7,7 @@ public interface IRentabilidadMensual {
     Double getCant_cotizada();
     Double getCant_ganada();
     String getPorcentaje_beneficio();
+    String getCompulsas_ganadas();
+    String getWinrate();
 
 }

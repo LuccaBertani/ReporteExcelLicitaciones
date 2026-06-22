@@ -6,7 +6,7 @@ export default function TopClientesChart({ data }) {
     .map((row) => ({
       cliente: row.cliente,
       tasa: num(row.tasa_exito_porcentaje),
-      total: row.total_licitaciones,
+      total: row.total_compulsas_participadas,
     }))
     .slice(0, 10)
 
@@ -39,7 +39,7 @@ export default function TopClientesChart({ data }) {
             fontSize: 13,
           }}
           formatter={(value, _name, props) => [
-            `${formatoPorcentaje(value)} (${props.payload.total} licitaciones)`,
+            `${formatoPorcentaje(value)} (${props.payload.total} compulsas)`,
             'Tasa de éxito',
           ]}
         />

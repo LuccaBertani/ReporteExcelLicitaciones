@@ -12,7 +12,7 @@ public class EntidadAdjudicada {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "detalle", nullable = false)
+    @Column(name = "detalle", nullable = false, length = 500)
     private String detalle;
 
     public EntidadAdjudicada() {

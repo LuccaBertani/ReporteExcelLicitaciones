@@ -154,7 +154,7 @@ public class Application implements CommandLineRunner {
                     rentabilidadMensual.forEach(ImprimidorFilas::imprimirFilaGenerica);
 
                     System.out.println("-- ============================================================================\n" +
-                            "-- 12. RENTABILIDAD FINANCIERA GLOBAL (PORCENTAJE DE BENEFICIO)\n" +
+                            "-- 12. RENTABILIDAD FINANCIERA GLOBAL SIN CONTAR DESISTIDAS (PORCENTAJE DE BENEFICIO)\n" +
                             "-- ============================================================================");
 
                     IRentabilidadGlobal rentabilidadGlobal = this.estadisticasService.getRentabilidadGlobal().getBody();
@@ -162,7 +162,7 @@ public class Application implements CommandLineRunner {
                     ImprimidorFilas.imprimirFilaGenerica(rentabilidadGlobal);
 
                     System.out.println("-- ============================================================================\n" +
-                            "-- 12. RENTABILIDAD FINANCIERA POR RIESGO (PORCENTAJE DE BENEFICIO)\n" +
+                            "-- 12. RENTABILIDAD FINANCIERA POR RIESGO SIN CONTAR DESISTIDAS (PORCENTAJE DE BENEFICIO)\n" +
                             "-- ============================================================================");
 
                     List<IRentabilidadPorRiesgo> rentabilidadPorRiesgo = this.estadisticasService.getRentabilidadPorRiesgo().getBody();

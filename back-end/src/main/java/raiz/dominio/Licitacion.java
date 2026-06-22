@@ -2,12 +2,14 @@ package raiz.dominio;
 
 import jakarta.persistence.*;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
 @Data
+@EqualsAndHashCode(exclude = "riesgosAsignados")
 @Entity
 @Table(name = "Licitacion")
 public class Licitacion {
