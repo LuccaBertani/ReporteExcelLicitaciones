@@ -352,7 +352,7 @@ public class InsertorDatos {
      * LicitacionRiesgo duplicado al reimportar el mismo Excel: si ya existe
      * una coincidencia, se actualiza esa fila en lugar de insertar una nueva.
      */
-    private LicitacionRiesgo buscarLicitacionRiesgoExistente(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status) {
+    private LicitacionRiesgo buscarLicitacionRiesgoExistente(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status, String motivo) {
 
         for (LicitacionRiesgo existente : licitacion.getRiesgosAsignados()) {
 
@@ -368,7 +368,12 @@ public class InsertorDatos {
                     || (existente.getFecha() != null && fecha != null
                         && existente.getFecha().compareTo(fecha) == 0);
 
-            if (mismoRiesgo && mismoStatus && mismaFecha) {
+            // Comparar motivo para distinguir renglones con mismo riesgo+status+fecha pero distinto motivo
+            String motivoExistente = existente.getMotivo() == null ? "" : existente.getMotivo();
+            String motivoNuevo    = motivo == null ? "" : motivo;
+            boolean mismoMotivo   = motivoExistente.equals(motivoNuevo);
+
+            if (mismoRiesgo && mismoStatus && mismaFecha && mismoMotivo) {
                 return existente;
             }
         }
@@ -391,10 +396,6 @@ public class InsertorDatos {
                 return;
             }
 
-            // Cargar los riesgos existentes para poder matchear y actualizar en lugar de duplicar
-            List<LicitacionRiesgo> riesgosEnDB = this.licitacionRiesgoRepository.findByLicitacion(licitacion.getId());
-            licitacion.setRiesgosAsignados(new ArrayList<>(riesgosEnDB));
-
         } else {
             licitacion = new Licitacion();
             licitacion.setNumeroCompulsa(numero_str);
@@ -414,6 +415,7 @@ public class InsertorDatos {
             System.out.println("Riesgo num " + indiceRiesgo + 1 + ": " + riesgo_str);
 
             if(riesgo_str.equalsIgnoreCase("SEGURO TECNICO")){
+                indiceRiesgo++;
                 continue;
             }
 
@@ -423,13 +425,8 @@ public class InsertorDatos {
 
                 Date fechaRiesgo = lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha());
 
-                // Buscar si ya existe un LicitacionRiesgo para este riesgo+status+fecha
-                // Si existe, actualizarlo en lugar de crear uno nuevo
-                LicitacionRiesgo licitacionRiesgo = buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status);
-                boolean esNuevo = (licitacionRiesgo == null);
-                if (esNuevo) {
-                    licitacionRiesgo = new LicitacionRiesgo();
-                }
+                // Cada fila del Excel genera su propio LicitacionRiesgo
+                LicitacionRiesgo licitacionRiesgo = new LicitacionRiesgo();
 
                 licitacionRiesgo.setRiesgo(riesgo);
                 licitacionRiesgo.setStatus(status);
@@ -531,9 +528,7 @@ public class InsertorDatos {
                     }
                 }
 
-                if (esNuevo) {
-                    licitacion.getRiesgosAsignados().add(licitacionRiesgo);
-                }
+                licitacion.getRiesgosAsignados().add(licitacionRiesgo);
 
                 indiceRiesgo++;
             }
@@ -546,144 +541,217 @@ public class InsertorDatos {
     public void verificarCarga(String rutaArchivo) {
 
         try (FileInputStream fis = new FileInputStream(rutaArchivo);
-
             Workbook workbook = new XSSFWorkbook(fis)) {
 
             Sheet sheet = workbook.getSheetAt(0);
+            Iterator<Row> rowIterator = sheet.iterator();
+
+            Row headerRow = rowIterator.next();
+            List<String> headers = new ArrayList<>();
+            for (int i = 0; i < headerRow.getLastCellNum(); i++) {
+                Cell celda = headerRow.getCell(i);
+                headers.add(celda != null ? celda.getStringCellValue() : "");
+            }
+            HeaderGestor hg = new HeaderGestor(headers, this.headersTemplate);
+
+            Integer idxNumero          = hg.getHeaderIndex("Numero");
+            Integer idxCliente         = hg.getHeaderIndex("cliente");
+            Integer idxFecha           = hg.getHeaderIndex("Fecha");
+            Integer idxRiesgo          = hg.getHeaderIndex("riesgo");
+            Integer idxStatus          = hg.getHeaderIndex("status");
+            Integer idxMotivo          = hg.getHeaderIndex("Motivo");
+            Integer idxAdjudicado      = hg.getHeaderIndex("adjudicadoA");
+            Integer idxMontoAdj        = hg.getHeaderIndex("MontoAdjudicado");
+            Integer idxMontoCot        = hg.getHeaderIndex("MontoCotizado");
+            Integer idxAdjCosto1       = hg.getHeaderIndex("AdjudicadoCosto1");
+            Integer idxAdjCosto2       = hg.getHeaderIndex("AdjudicadoCosto2");
+            Integer idxCotCosto1       = hg.getHeaderIndex("CotizadoCosto1");
+            Integer idxCotCosto2       = hg.getHeaderIndex("CotizadoCosto2");
+
+            List<Integer> indicesAdjCosto = new ArrayList<>();
+            if (idxAdjCosto1 != null) indicesAdjCosto.add(idxAdjCosto1);
+            if (idxAdjCosto2 != null) indicesAdjCosto.add(idxAdjCosto2);
+
+            List<Integer> indicesCotCosto = new ArrayList<>();
+            if (idxCotCosto1 != null) indicesCotCosto.add(idxCotCosto1);
+            if (idxCotCosto2 != null) indicesCotCosto.add(idxCotCosto2);
 
             System.out.println("--- INICIANDO AUDITORÍA DE DATOS ---");
 
-            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+            int filaExcel      = 1;
+            int renglonesFaltantes = 0;
+            int renglonesMalMonto  = 0;
+            int renglonesMalCotizado = 0;
+            int renglonOk      = 0;
 
-                Row row = sheet.getRow(i);
+            while (rowIterator.hasNext()) {
+                Row row = rowIterator.next();
+                filaExcel++;
 
-                if (row == null || row.getCell(3) == null) continue;
-
-                String numExcel = lectorCeldas.leerComoTexto(row, 3);
+                if (idxNumero == null || row.getCell(idxNumero) == null) continue;
+                String numExcel = lectorCeldas.leerComoTexto(row, idxNumero);
+                if (numExcel == null || numExcel.isBlank()) continue;
 
                 Licitacion licitacion = this.entidadLicitacionRepository.findByNumeroCompulsa(numExcel).orElse(null);
-
                 if (licitacion == null) {
-                    throw MensajesError.licitacionFaltante(numExcel);
+                    System.out.println("[FALTA LICITACION] Fila " + filaExcel + " | Compulsa: " + numExcel);
+                    renglonesFaltantes++;
+                    continue;
                 }
 
-                String cliente_str_limpio = LimpiadorTexto.limpiarTildes(lectorCeldas.leerComoTexto(row, 4));
-                String cliente_db_limpio = LimpiadorTexto.limpiarTildes(licitacion.getCliente().getDetalle());
-
-                if (!cliente_db_limpio.equals(cliente_str_limpio)) {
-                    MensajesError.errorComparacion(numExcel, cliente_str_limpio, licitacion.getCliente().getDetalle());
+                if (idxCliente != null) {
+                    String clienteExcel = LimpiadorTexto.limpiarTildes(lectorCeldas.leerComoTexto(row, idxCliente));
+                    String clienteDB    = LimpiadorTexto.limpiarTildes(licitacion.getCliente().getDetalle());
+                    if (!clienteDB.equals(clienteExcel)) {
+                        System.out.println("[CLIENTE DISTINTO] Fila " + filaExcel + " | Compulsa: " + numExcel
+                                + " | Excel: " + clienteExcel + " | DB: " + clienteDB);
+                    }
                 }
 
-                List<LicitacionRiesgo> licitacionesRiesgo = this.licitacionRiesgoRepository.findByLicitacion(licitacion.getId());
-
-                if (licitacionesRiesgo.isEmpty()) {
-                    throw MensajesError.sinLicitacionesRiesgo(numExcel);
+                List<LicitacionRiesgo> riesgosEnDB = this.licitacionRiesgoRepository.findByLicitacion(licitacion.getId());
+                if (riesgosEnDB.isEmpty()) {
+                    System.out.println("[SIN RENGLONES] Fila " + filaExcel + " | Compulsa: " + numExcel);
+                    renglonesFaltantes++;
+                    continue;
                 }
 
-                int j = 0;
-                boolean verificado = false;
+                String riesgosRaw  = idxRiesgo != null ? lectorCeldas.leerComoTexto(row, idxRiesgo) : "";
+                List<String> tokens = this.gestorRiesgos.obtenerTokens(riesgosRaw);
+                String statusExcel = idxStatus != null ? lectorCeldas.leerCeldaRecortada(row, idxStatus) : "";
+                String motivoExcel = idxMotivo != null ? lectorCeldas.leerCeldaRecortada(row, idxMotivo) : "";
+                String motivoExcelCap = motivoExcel.isBlank() ? "" : LimpiadorTexto.capitalizar(motivoExcel);
+                Date   fechaExcel  = idxFecha  != null ? lectorCeldas.leerFecha(row, idxFecha) : null;
 
-                for (LicitacionRiesgo licitacionRiesgo : licitacionesRiesgo) {
+                // Monto adjudicado general de la fila
+                Double montoAdjExcel = null;
+                if (idxMontoAdj != null) {
+                    Cell c = row.getCell(idxMontoAdj);
+                    if (!lectorCeldas.esCeldaVaciaOInvalida(c) && c.getCellType() == CellType.NUMERIC) {
+                        montoAdjExcel = c.getNumericCellValue();
+                    }
+                }
 
-                    System.out.println(j + " licitacionRiesgo a analizar");
+                // Monto cotizado general de la fila
+                Double montoCotExcel = null;
+                if (idxMontoCot != null) {
+                    Cell c = row.getCell(idxMontoCot);
+                    if (!lectorCeldas.esCeldaVaciaOInvalida(c) && c.getCellType() == CellType.NUMERIC) {
+                        montoCotExcel = c.getNumericCellValue();
+                    }
+                }
 
-                    Date date_excel = lectorCeldas.leerFecha(row, 2);
+                // Usamos una copia mutable de los riesgos en DB para marcar los ya matcheados
+                // y no contar el mismo registro dos veces cuando hay duplicados legítimos
+                List<LicitacionRiesgo> riesgosDisponibles = new ArrayList<>(riesgosEnDB);
 
-                    if (!(licitacionRiesgo.getFecha().compareTo(date_excel) == 0)) {
-                        System.out.println("Fallo la fecha");
+                int indiceToken = 0;
+                for (String token : tokens) {
+                    if (token.equalsIgnoreCase("SEGURO TECNICO")) {
+                        indiceToken++; // igual que en el insertor
                         continue;
                     }
 
-                    String motivoExcel = lectorCeldas.leerCeldaRecortada(row, 7);
-
-                    String motivoDB = (licitacionRiesgo.getMotivo() == null) ? "" : licitacionRiesgo.getMotivo();
-
-                    if (!motivoDB.equals(motivoExcel)) {
-                        System.out.println("Fallo el motivo: DB[" + motivoDB + "] vs Excel[" + motivoExcel + "]");
+                    Riesgo riesgoEsperado = this.gestorRiesgos.resolverRiesgo(token);
+                    if (riesgoEsperado == null) {
+                        System.out.println("[RIESGO NO RECONOCIDO] Fila " + filaExcel + " | Compulsa: " + numExcel + " | Token: " + token);
+                        indiceToken++;
                         continue;
                     }
 
-                    String mes_str = lectorCeldas.leerCeldaRecortada(row, 1);
-
-                    if (!licitacionRiesgo.getMes().getDetalle().equals(mes_str)) {
-                        System.out.println("Fallo el mes: DB[" + licitacionRiesgo.getMes().getDetalle() + "] vs Excel[" + mes_str + "]");
-                        continue;
+                    // Montos esperados para este token según su posición (igual que el insertor)
+                    Double montoAdjEsperado = null;
+                    if (!indicesAdjCosto.isEmpty() && indiceToken < indicesAdjCosto.size()) {
+                        montoAdjEsperado = lectorCeldas.leerComoDouble(row.getCell(indicesAdjCosto.get(indiceToken)));
                     }
+                    if (montoAdjEsperado == null) montoAdjEsperado = montoAdjExcel;
 
-                    String status_str = lectorCeldas.leerComoTexto(row, 6);
-
-                    if (!licitacionRiesgo.getStatus().getDetalle().equals(status_str)) {
-                        System.out.println("Fallo el status");
-                        continue;
+                    Double montoCotEsperado = null;
+                    if (!indicesCotCosto.isEmpty() && indiceToken < indicesCotCosto.size()) {
+                        montoCotEsperado = lectorCeldas.leerComoDouble(row.getCell(indicesCotCosto.get(indiceToken)));
                     }
+                    if (montoCotEsperado == null) montoCotEsperado = montoCotExcel;
 
-                    String celdaRiesgoRaw = lectorCeldas.leerComoTexto(row, 5);
-                    List<String> tokensExcel = this.gestorRiesgos.obtenerTokens(celdaRiesgoRaw); // "RC / INCENDIO" -> ["RC", "INCENDIO"]
+                    // Buscar en disponibles: primero por metadatos+montos exactos,
+                    // luego solo por metadatos (para reportar monto distinto)
+                    LicitacionRiesgo matchMetadatos = null;
+                    LicitacionRiesgo matchCompleto  = null;
 
-                    boolean riesgoEncontradoEnTokens = false;
+                    for (LicitacionRiesgo lr : riesgosDisponibles) {
+                        boolean mismoRiesgo = lr.getRiesgo()  != null && lr.getRiesgo().getId().equals(riesgoEsperado.getId());
+                        boolean mismoStatus = lr.getStatus()  != null && lr.getStatus().getDetalle().equals(statusExcel);
+                        boolean mismaFecha  = lr.getFecha()   != null && fechaExcel != null && lr.getFecha().compareTo(fechaExcel) == 0;
+                        String  motivoDB    = lr.getMotivo()  == null ? "" : lr.getMotivo();
+                        boolean mismoMotivo = motivoDB.equals(motivoExcelCap);
 
-                    for (String token : tokensExcel) {
-                        Riesgo riesgoAsociadoAlToken = this.gestorRiesgos.resolverRiesgo(token);
+                        if (!mismoRiesgo || !mismoStatus || !mismaFecha || !mismoMotivo) continue;
 
-                        if (riesgoAsociadoAlToken != null && riesgoAsociadoAlToken.getDetalle().equalsIgnoreCase(licitacionRiesgo.getRiesgo().getDetalle())) {
-                            riesgoEncontradoEnTokens = true;
+                        // Metadatos ok — verificar montos
+                        boolean adjOk = montoAdjEsperado == null
+                                ? (lr.getMontoAdjudicado() == null)
+                                : (lr.getMontoAdjudicado() != null && Math.abs(lr.getMontoAdjudicado() - montoAdjEsperado) < 0.01);
+
+                        boolean cotOk = montoCotEsperado == null
+                                ? (lr.getMontoCotizado() == null)
+                                : (lr.getMontoCotizado() != null && Math.abs(lr.getMontoCotizado() - montoCotEsperado) < 0.01);
+
+                        if (adjOk && cotOk) {
+                            matchCompleto = lr;
+                            break;
+                        } else if (matchMetadatos == null) {
+                            matchMetadatos = lr; // guardar el primero con metadatos ok para reporte
                         }
                     }
 
-
-                    if (!riesgoEncontradoEnTokens) {
-                        System.out.println("Fallo el riesgo: El riesgo en DB '" + licitacionRiesgo.getRiesgo().getDetalle() + "no se encuentra en la celda: " + celdaRiesgoRaw);
-                        continue;
-                    }
-
-                    String adjudicada_str = lectorCeldas.leerComoTexto(row, 8);
-
-                    if (!licitacionRiesgo.getAdjudicada().getDetalle().equals(adjudicada_str)) {
-                        System.out.println("Fallo la adjudicada");
-                        continue;
-                    }
-
-                    Cell celdaMontoAdjudicado = row.getCell(9);
-
-                    if(!lectorCeldas.esCeldaVaciaOInvalida(celdaMontoAdjudicado)) {
-
-                        if (celdaMontoAdjudicado.getCellType() == CellType.NUMERIC) {
-
-                            Double montoAdjudicado = celdaMontoAdjudicado.getNumericCellValue();
-
-                            if (!(licitacionRiesgo.getMontoAdjudicado().compareTo(montoAdjudicado) == 0)) {
-                                System.out.println("Fallo el monto adjudicado");
-                                continue;
-                            }
-                            if (!(licitacionRiesgo.getTipoAdjudicacion().getDetalle().equals("CON MONTO"))) {
-                                System.out.println("Fallo el tipo adjudicacion");
-                                continue;
-                            }
-                        } else {
-                            if (licitacionRiesgo.getMontoAdjudicado() != null) {
-                                System.out.println("Fallo el monto adjudicado");
-                                continue;
-                            }
-                            if (!(licitacionRiesgo.getTipoAdjudicacion().getDetalle().equals("DEJADA SIN EFECTO"))) {
-                                System.out.println("Fallo el tipo adjudicacion");
-                                continue;
-                            }
+                    if (matchCompleto != null) {
+                        riesgosDisponibles.remove(matchCompleto);
+                        renglonOk++;
+                    } else if (matchMetadatos != null) {
+                        riesgosDisponibles.remove(matchMetadatos);
+                        String adjDB = matchMetadatos.getMontoAdjudicado() == null ? "null" : matchMetadatos.getMontoAdjudicado().toString();
+                        String cotDB = matchMetadatos.getMontoCotizado()   == null ? "null" : matchMetadatos.getMontoCotizado().toString();
+                        System.out.println("[MONTO DISTINTO] Fila " + filaExcel
+                                + " | Compulsa: " + numExcel
+                                + " | Riesgo: " + riesgoEsperado.getDetalle()
+                                + " | Posicion: " + indiceToken
+                                + " | AdjExcel: " + montoAdjEsperado + " -> DB: " + adjDB
+                                + " | CotExcel: " + montoCotEsperado + " -> DB: " + cotDB);
+                        if (montoAdjEsperado != null && matchMetadatos.getMontoAdjudicado() != null
+                                && Math.abs(matchMetadatos.getMontoAdjudicado() - montoAdjEsperado) >= 0.01) {
+                            renglonesMalMonto++;
+                        }
+                        if (montoCotEsperado != null && matchMetadatos.getMontoCotizado() != null
+                                && Math.abs(matchMetadatos.getMontoCotizado() - montoCotEsperado) >= 0.01) {
+                            renglonesMalCotizado++;
                         }
                     } else {
-                        if(licitacionRiesgo.getMontoAdjudicado() != null || !licitacionRiesgo.getTipoAdjudicacion().getDetalle().equals("DEJADA SIN EFECTO")) {
-                            System.out.println("Fallo el monto adjudicado y tipo adjudicacion");
-                            continue;
-                        }
+                        System.out.println("[RENGLON FALTANTE] Fila " + filaExcel
+                                + " | Compulsa: " + numExcel
+                                + " | Riesgo: " + riesgoEsperado.getDetalle()
+                                + " | Posicion: " + indiceToken
+                                + " | Status: " + statusExcel
+                                + " | Motivo: '" + motivoExcelCap + "'"
+                                + " | Fecha: " + fechaExcel
+                                + " -> NO encontrado en BD");
+                        renglonesFaltantes++;
                     }
 
-                    verificado = true;
-                    break;
-                }
-                if (!verificado) {
-                    throw MensajesError.verificacionFallida(licitacion.getId());
+                    indiceToken++;
                 }
             }
-            System.out.println("VERIFICACION FINALIZADA CORRECTAMENTE");
+
+            System.out.println("\n--- RESUMEN AUDITORÍA ---");
+            System.out.println("Renglones OK              : " + renglonOk);
+            System.out.println("Renglones faltantes en BD : " + renglonesFaltantes);
+            System.out.println("Renglones monto adj. mal  : " + renglonesMalMonto);
+            System.out.println("Renglones monto cot. mal  : " + renglonesMalCotizado);
+
+            int totalErrores = renglonesFaltantes + renglonesMalMonto + renglonesMalCotizado;
+            if (totalErrores == 0) {
+                System.out.println("VERIFICACION CORRECTA - Todos los renglones coinciden.");
+            } else {
+                System.out.println("VERIFICACION CON " + totalErrores + " ERROR(ES) - Ver detalle arriba.");
+            }
+
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

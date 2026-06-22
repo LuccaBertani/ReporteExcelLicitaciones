@@ -57,7 +57,7 @@ public class Application implements CommandLineRunner {
         int opcion;
 
         do {
-            System.out.println("\n1_Cargar excel \n2_Obtener estadisticas \n3_Finalizar programa \n");
+            System.out.println("\n1_Cargar excel \n2_Obtener estadisticas \n3_Verificar carga \n4_Finalizar programa \n");
             System.out.print("Seleccione una opción: ");
             opcion = sc.nextInt();
             sc.nextLine();
@@ -239,6 +239,12 @@ public class Application implements CommandLineRunner {
 
                     break;
                 case 3:
+                    System.out.println("Ingrese el path del archivo excel a verificar:");
+                    String rutaVerificacion = sc.nextLine();
+                    insertor.verificarCarga(rutaVerificacion);
+                    break;
+
+                case 4:
                     System.out.println("Finalizando programa...");
                     break;
 
@@ -247,7 +253,7 @@ public class Application implements CommandLineRunner {
                     break;
             }
 
-        } while (opcion != 3);
+        } while (opcion != 4);
 
         sc.close();
     }
