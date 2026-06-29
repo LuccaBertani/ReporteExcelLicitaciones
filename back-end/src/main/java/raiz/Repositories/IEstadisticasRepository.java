@@ -235,7 +235,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        l_r.id_mes, COALESCE(m.detalle, 'Sin Mes Asignado') AS mes,\n" +
             "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
             "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
-            "        COUNT(DISTINCT l.numero_compulsa) AS licitaciones_totales,\n" +
+            "        COUNT(*) AS licitaciones_totales,\n" +
             "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
@@ -267,8 +267,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FORMAT(cant_cotizada, 2, 'de_DE') AS cant_cotizada, \n" +
             "    FORMAT(cant_ganada, 2, 'de_DE') AS cant_ganada, \n" +
             "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio,\n" +
-            "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS licitaciones_ganadas,\n" +
-            "    FORMAT(licitaciones_totales, 0, 'de_DE') AS licitaciones_totales,\n" +
+            "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS compulsas_ganadas,\n" +
+            "    FORMAT(licitaciones_totales, 0, 'de_DE') AS compulsas_totales,\n" +
             "    FORMAT((licitaciones_ganadas * 100.0) / NULLIF(licitaciones_totales, 0), 2, 'de_DE') AS winrate\n" +
             "FROM (\n" +
             "    SELECT \n" +
@@ -276,13 +276,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        COALESCE(r.detalle, 'Sin Riesgo Asignado') AS riesgo,\n" +
             "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
             "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
-            "        -- Métricas de conteo de licitaciones\n" +
             "        COUNT(l_r.id) AS licitaciones_totales,\n" +
             "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "    -- Filtro estricto para ignorar las desistidas (por texto y por ID)\n" +
             "    WHERE s.detalle <> 'Desistida'\n" +
             "    GROUP BY l_r.id_riesgo, r.detalle\n" +
             ") AS subconsulta \n" +

@@ -153,16 +153,20 @@ public class InsertorDatos {
                     );
                 }
 
-                List<Integer> indicesAdjudicadoCosto = null;
+                List<Integer> indicesAdjudicadoCosto = new ArrayList<>();
 
                 Integer AdjudicadoCosto1Header = headerGestor.getHeaderIndex("AdjudicadoCosto1");
                 Integer AdjudicadoCosto2Header = headerGestor.getHeaderIndex("AdjudicadoCosto2");
+                Integer AdjudicadoCosto3Header = headerGestor.getHeaderIndex("AdjudicadoCosto3");
 
-                if(AdjudicadoCosto1Header != null &&  AdjudicadoCosto2Header != null) {
-                    indicesAdjudicadoCosto = List.of(
-                            AdjudicadoCosto1Header,
-                            AdjudicadoCosto2Header
-                    );
+                if(AdjudicadoCosto1Header != null) {
+                    indicesAdjudicadoCosto.add(AdjudicadoCosto1Header);
+                }
+                if(AdjudicadoCosto1Header != null) {
+                    indicesAdjudicadoCosto.add(AdjudicadoCosto2Header);
+                }
+                if(AdjudicadoCosto1Header != null) {
+                    indicesAdjudicadoCosto.add(AdjudicadoCosto3Header);
                 }
 
                 IndicesLicitacion indicesLicitacion = new IndicesLicitacion(indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexEstadoMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
@@ -393,6 +397,7 @@ public class InsertorDatos {
             licitacion = this.entidadLicitacionRepository.findByNumeroCompulsa(numero_str).orElse(null);
 
             if(licitacion == null) {
+                System.out.println("#### COMO ENTRAS A ACA ANIMAL");
                 return;
             }
 

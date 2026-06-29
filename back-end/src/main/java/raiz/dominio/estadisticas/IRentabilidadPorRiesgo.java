@@ -4,11 +4,11 @@ public interface IRentabilidadPorRiesgo {
 
     Long getId_riesgo();
     String getRiesgo();
-    Double getCant_cotizada();
-    Double getCant_ganada();
+    String getCant_cotizada();
+    String getCant_ganada();
     String getPorcentaje_beneficio();
-    String getLicitaciones_ganadas();
-    String getLicitaciones_totales();
+    String getCompulsas_ganadas();
+    String getCompulsas_totales();
     String getWinrate();
 
 }

@@ -12,6 +12,18 @@ const initialState = {
   rentabilidadMensual: null,
   totalAdjudicadoGanadas: null,
   sobreprecioPromedio: null,
+  // Nuevos
+  fugasCompetidor: null,
+  perdidasMotivo: null,
+  desvioPrecioMotivo: null,
+  motivoGanada: null,
+  rankingRiesgosGanados: null,
+  rentabilidadResidualPerdidas: null,
+  totalDesistidas: null,
+  topMotivosDesistidas: null,
+  montoAdjudicadoDesistido: null,
+  renglonesDesistidos: null,
+  rentabilidadPorRiesgo: null,
 }
 
 export function useEstadisticas() {
@@ -35,6 +47,17 @@ export function useEstadisticas() {
           rentabilidadMensual,
           totalAdjudicadoGanadas,
           sobreprecioPromedio,
+          fugasCompetidor,
+          perdidasMotivo,
+          desvioPrecioMotivo,
+          motivoGanada,
+          rankingRiesgosGanados,
+          rentabilidadResidualPerdidas,
+          totalDesistidas,
+          topMotivosDesistidas,
+          montoAdjudicadoDesistido,
+          renglonesDesistidos,
+          rentabilidadPorRiesgo,
         ] = await Promise.all([
           EstadisticasAPI.totalLicitaciones(),
           EstadisticasAPI.winrateGlobal(),
@@ -46,6 +69,17 @@ export function useEstadisticas() {
           EstadisticasAPI.rentabilidadMensual(),
           EstadisticasAPI.totalAdjudicadoGanadas(),
           EstadisticasAPI.sobreprecioPromedio(),
+          EstadisticasAPI.fugasCompetidor(),
+          EstadisticasAPI.perdidasMotivo(),
+          EstadisticasAPI.desvioPrecioMotivo(),
+          EstadisticasAPI.motivoGanada(),
+          EstadisticasAPI.rankingRiesgosGanados(),
+          EstadisticasAPI.rentabilidadResidualPerdidas(),
+          EstadisticasAPI.totalDesistidas(),
+          EstadisticasAPI.topMotivosDesistidas(),
+          EstadisticasAPI.montoAdjudicadoDesistido(),
+          EstadisticasAPI.renglonesDesistidos(),
+          EstadisticasAPI.rentabilidadPorRiesgo(),
         ])
 
         if (!cancelado) {
@@ -60,6 +94,17 @@ export function useEstadisticas() {
             rentabilidadMensual,
             totalAdjudicadoGanadas,
             sobreprecioPromedio,
+            fugasCompetidor,
+            perdidasMotivo,
+            desvioPrecioMotivo,
+            motivoGanada,
+            rankingRiesgosGanados,
+            rentabilidadResidualPerdidas,
+            totalDesistidas,
+            topMotivosDesistidas,
+            montoAdjudicadoDesistido,
+            renglonesDesistidos,
+            rentabilidadPorRiesgo,
           })
         }
       } catch (err) {

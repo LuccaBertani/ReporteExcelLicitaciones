@@ -10,6 +10,19 @@ import {
 } from 'recharts'
 import { num, formatoMonedaCorta } from '../utils/formato'
 
+const tooltipStyle = {
+  contentStyle: {
+    background: 'var(--panel-bg)',
+    border: '1px solid var(--grid-line)',
+    borderRadius: 8,
+    fontFamily: 'var(--font-mono)',
+    fontSize: 13,
+    color: 'var(--text)',
+  },
+  itemStyle: { color: 'var(--text)' },
+  labelStyle: { color: 'var(--text-dim)' },
+}
+
 export default function RentabilidadMensualChart({ data }) {
   const rows = (data ?? []).map((row) => ({
     mes: row.mes,
@@ -32,40 +45,16 @@ export default function RentabilidadMensualChart({ data }) {
         </defs>
         <CartesianGrid stroke="var(--grid-line)" vertical={false} />
         <XAxis dataKey="mes" stroke="var(--text-dim)" fontSize={12} tickLine={false} />
-        <YAxis
-          stroke="var(--text-dim)"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={formatoMonedaCorta}
-        />
+        <YAxis stroke="var(--text-dim)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={formatoMonedaCorta} />
         <Tooltip
-          contentStyle={{
-            background: 'var(--panel-bg)',
-            border: '1px solid var(--grid-line)',
-            borderRadius: 8,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-          }}
+          contentStyle={tooltipStyle.contentStyle}
+          itemStyle={tooltipStyle.itemStyle}
+          labelStyle={tooltipStyle.labelStyle}
           formatter={(value, name) => [formatoMonedaCorta(value), name]}
         />
-        <Legend wrapperStyle={{ fontSize: 12, fontFamily: 'var(--font-mono)' }} />
-        <Area
-          type="monotone"
-          dataKey="cotizada"
-          name="Cotizado"
-          stroke="var(--accent-blue)"
-          fill="url(#gradCotizada)"
-          strokeWidth={2}
-        />
-        <Area
-          type="monotone"
-          dataKey="ganada"
-          name="Ganado"
-          stroke="var(--accent-green)"
-          fill="url(#gradGanada)"
-          strokeWidth={2}
-        />
+        <Legend wrapperStyle={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-dim)' }} />
+        <Area type="monotone" dataKey="cotizada" name="Cotizado" stroke="var(--accent-blue)" fill="url(#gradCotizada)" strokeWidth={2} />
+        <Area type="monotone" dataKey="ganada" name="Ganado" stroke="var(--accent-green)" fill="url(#gradGanada)" strokeWidth={2} />
       </AreaChart>
     </ResponsiveContainer>
   )

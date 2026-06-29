@@ -1,6 +1,19 @@
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { num, formatoPorcentaje } from '../utils/formato'
 
+const tooltipStyle = {
+  contentStyle: {
+    background: 'var(--panel-bg)',
+    border: '1px solid var(--grid-line)',
+    borderRadius: 8,
+    fontFamily: 'var(--font-mono)',
+    fontSize: 13,
+    color: 'var(--text)',
+  },
+  itemStyle: { color: 'var(--text)' },
+  labelStyle: { color: 'var(--text-dim)' },
+}
+
 export default function TopClientesChart({ data }) {
   const rows = (data ?? [])
     .map((row) => ({
@@ -23,21 +36,11 @@ export default function TopClientesChart({ data }) {
           interval={0}
           tickLine={false}
         />
-        <YAxis
-          stroke="var(--text-dim)"
-          fontSize={12}
-          tickLine={false}
-          axisLine={false}
-          tickFormatter={(v) => `${v}%`}
-        />
+        <YAxis stroke="var(--text-dim)" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(v) => `${v}%`} />
         <Tooltip
-          contentStyle={{
-            background: 'var(--panel-bg)',
-            border: '1px solid var(--grid-line)',
-            borderRadius: 8,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 13,
-          }}
+          contentStyle={tooltipStyle.contentStyle}
+          itemStyle={tooltipStyle.itemStyle}
+          labelStyle={tooltipStyle.labelStyle}
           formatter={(value, _name, props) => [
             `${formatoPorcentaje(value)} (${props.payload.total} compulsas)`,
             'Tasa de éxito',
