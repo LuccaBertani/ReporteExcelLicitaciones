@@ -81,7 +81,77 @@
   font-size: 14px;
   line-height: 1.6;
   color: var(--text-dim);
-  margin: 0;
+  margin: 0 0 24px;
+}
+
+/* ---------- Filtro de rango de fechas (hero) ---------- */
+
+.hero__filtro-fecha {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.hero__filtro-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hero__filtro-campo span {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.hero__filtro-campo input[type='month'] {
+  background: var(--bg-elevated);
+  border: 1px solid var(--grid-line);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  padding: 7px 10px;
+  border-radius: 6px;
+  outline: none;
+  color-scheme: dark;
+  transition: border-color 0.15s;
+}
+
+.hero__filtro-campo input[type='month']:focus {
+  border-color: var(--accent-blue);
+}
+
+.hero__filtro-btn {
+  background: var(--accent-blue);
+  border: none;
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+.hero__filtro-btn:hover {
+  opacity: 0.88;
+  transform: translateY(-1px);
+}
+
+.hero__filtro-btn--ghost {
+  background: none;
+  border: 1px solid var(--grid-line);
+  color: var(--text-dim);
+}
+
+.hero__filtro-btn--ghost:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  transform: none;
 }
 
 .dashboard__error {

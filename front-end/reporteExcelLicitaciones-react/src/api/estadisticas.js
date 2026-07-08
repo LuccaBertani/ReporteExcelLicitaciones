@@ -1,53 +1,74 @@
-const BASE_URL = 'http://localhost:8080/api/v1/estadisticas'
-const EXCEL_URL = 'http://localhost:8080/api/v1/excel'
+import { API_BASE_URL } from './config'
+import { authFetch } from '../auth/authFetch'
 
-async function get(path) {
-  const res = await fetch(`${BASE_URL}${path}`)
+const BASE_URL = `${API_BASE_URL}/estadisticas`
+const EXCEL_URL = `${API_BASE_URL}/excel`
+
+// Arma el query string a partir de un objeto de params, ignorando valores
+// vacíos/undefined/null. Soporta arrays (ej. motivos=A&motivos=B).
+function buildQuery(params) {
+  if (!params) return ''
+  const usp = new URLSearchParams()
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === '') return
+    if (Array.isArray(value)) {
+      if (value.length === 0) return
+      value.forEach((v) => usp.append(key, v))
+    } else {
+      usp.append(key, value)
+    }
+  })
+  const qs = usp.toString()
+  return qs ? `?${qs}` : ''
+}
+
+async function get(path, params) {
+  const res = await authFetch(`${BASE_URL}${path}${buildQuery(params)}`)
   if (!res.ok) {
     throw new Error(`Error ${res.status} al consultar ${path}`)
   }
-  return res.json()
+  // Cuando no hay datos para el rango filtrado, el backend puede devolver
+  // 200 OK con el body completamente vacío (pasa con los endpoints que
+  // devuelven un objeto único, no una lista). Lo tratamos como "sin datos"
+  // en vez de romper: el resto de la UI ya sabe mostrar ceros/paneles vacíos
+  // ante null/undefined.
+  const texto = await res.text()
+  if (!texto) return null
+  return JSON.parse(texto)
 }
 
+// "rango" es un objeto opcional { fechaDesde, fechaHasta } (strings 'yyyy-MM-dd').
 export const EstadisticasAPI = {
-  totalLicitaciones: () => get('/total-licitaciones'),
-  winrateGlobal: () => get('/winrate-global'),
-  evolucionMensual: () => get('/evolucion-mensual'),
-  topRiesgos: () => get('/top-riesgos'),
-  topClientesTasaExito: () => get('/top-clientes-tasa-exito'),
-  estadoLicitaciones: () => get('/estado-licitaciones'),
-  rentabilidadGlobal: () => get('/rentabilidad-global'),
-  rentabilidadMensual: (motivos) => {
-    if (!motivos || motivos.length === 0) return get('/rentabilidad-mensual')
-    const params = motivos.map((m) => `motivos=${encodeURIComponent(m)}`).join('&')
-    return get(`/rentabilidad-mensual?${params}`)
-  },
-  totalAdjudicadoGanadas: () => get('/total-adjudicado-ganadas'),
-  sobreprecioPromedio: () => get('/sobreprecio-promedio'),
-  fugasCompetidor: () => get('/fugas-competidor'),
-  perdidasMotivo: () => get('/perdidas-motivo'),
-  desvioPrecioMotivo: () => get('/desvio-precio-motivo'),
-  motivoGanada: () => get('/motivo-ganada'),
-  rankingRiesgosGanados: () => get('/ranking-riesgos-ganados'),
-  rentabilidadResidualPerdidas: () => get('/rentabilidad-residual-perdidas'),
-  totalDesistidas: () => get('/total-desistidas'),
-  topMotivosDesistidas: () => get('/top-motivos-desistidas'),
-  montoAdjudicadoDesistido: () => get('/monto-adjudicado-desistido'),
-  renglonesDesistidos: () => get('/renglones-desistidos'),
-  motivosDisponibles: () => get('/motivos-disponibles'),
-  cantidadLicitacionesMensual: (motivos) => {
-    if (!motivos || motivos.length === 0) return get('/cantidad-licitaciones-mensual')
-    const params = motivos.map((m) => `motivos=${encodeURIComponent(m)}`).join('&')
-    return get(`/cantidad-licitaciones-mensual?${params}`)
-  },
-  rentabilidadPorRiesgo: () => get('/rentabilidad-riesgo'),
+  totalLicitaciones: (rango) => get('/total-licitaciones', rango),
+  winrateGlobal: (rango) => get('/winrate-global', rango),
+  evolucionMensual: (rango) => get('/evolucion-mensual', rango),
+  topRiesgos: (rango) => get('/top-riesgos', rango),
+  topClientesTasaExito: (rango) => get('/top-clientes-tasa-exito', rango),
+  estadoLicitaciones: (rango) => get('/estado-licitaciones', rango),
+  rentabilidadGlobal: (rango) => get('/rentabilidad-global', rango),
+  rentabilidadMensual: (motivos, rango) => get('/rentabilidad-mensual', { motivos, ...rango }),
+  totalAdjudicadoGanadas: (rango) => get('/total-adjudicado-ganadas', rango),
+  sobreprecioPromedio: (rango) => get('/sobreprecio-promedio', rango),
+  fugasCompetidor: (rango) => get('/fugas-competidor', rango),
+  perdidasMotivo: (rango) => get('/perdidas-motivo', rango),
+  desvioPrecioMotivo: (rango) => get('/desvio-precio-motivo', rango),
+  motivoGanada: (rango) => get('/motivo-ganada', rango),
+  rankingRiesgosGanados: (rango) => get('/ranking-riesgos-ganados', rango),
+  rentabilidadResidualPerdidas: (rango) => get('/rentabilidad-residual-perdidas', rango),
+  totalDesistidas: (rango) => get('/total-desistidas', rango),
+  topMotivosDesistidas: (rango) => get('/top-motivos-desistidas', rango),
+  montoAdjudicadoDesistido: (rango) => get('/monto-adjudicado-desistido', rango),
+  renglonesDesistidos: (rango) => get('/renglones-desistidos', rango),
+  motivosDisponibles: (rango) => get('/motivos-disponibles', rango),
+  cantidadLicitacionesMensual: (motivos, rango) => get('/cantidad-licitaciones-mensual', { motivos, ...rango }),
+  rentabilidadPorRiesgo: (rango) => get('/rentabilidad-riesgo', rango),
 }
 
 export const ExcelAPI = {
   importar: async (archivo) => {
     const formData = new FormData()
     formData.append('archivo', archivo)
-    const res = await fetch(`${EXCEL_URL}/importar`, {
+    const res = await authFetch(`${EXCEL_URL}/importar`, {
       method: 'POST',
       body: formData,
     })

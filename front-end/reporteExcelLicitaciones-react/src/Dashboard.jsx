@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useEstadisticas } from './hooks/useEstadisticas'
 import KpiCard from './components/KpiCard'
 import Panel from './components/Panel'
@@ -23,8 +24,40 @@ function SectionTitle({ children }) {
   return <h2 className="section-title">{children}</h2>
 }
 
-export default function Dashboard({ onNavigate }) {
-  const { data, loading, error, refetchRentabilidadMensual, refetchCantidadLicitacionesMensual } = useEstadisticas()
+export default function Dashboard() {
+  const navigate = useNavigate()
+
+  // --- Filtro global de rango de fechas (aplica a TODAS las estadísticas) ---
+  // Se eligen MESES (no días puntuales), y se calcula automáticamente el primer
+  // y el último día de cada mes para que el rango incluya el mes completo.
+  const [mesDesdeInput, setMesDesdeInput] = useState('')
+  const [mesHastaInput, setMesHastaInput] = useState('')
+  const [rango, setRango] = useState({ fechaDesde: '', fechaHasta: '' })
+
+  const primerDiaDeMes = (yyyyMM) => `${yyyyMM}-01`
+
+  const ultimoDiaDeMes = (yyyyMM) => {
+    const [anio, mes] = yyyyMM.split('-').map(Number)
+    const ultimoDia = new Date(anio, mes, 0).getDate() // día 0 del mes siguiente = último día del actual
+    return `${yyyyMM}-${String(ultimoDia).padStart(2, '0')}`
+  }
+
+  const aplicarRango = () => {
+    setRango({
+      fechaDesde: mesDesdeInput ? primerDiaDeMes(mesDesdeInput) : '',
+      fechaHasta: mesHastaInput ? ultimoDiaDeMes(mesHastaInput) : '',
+    })
+  }
+
+  const limpiarRango = () => {
+    setMesDesdeInput('')
+    setMesHastaInput('')
+    setRango({ fechaDesde: '', fechaHasta: '' })
+  }
+
+  const hayRangoAplicado = Boolean(rango.fechaDesde || rango.fechaHasta)
+
+  const { data, loading, error, refetchRentabilidadMensual, refetchCantidadLicitacionesMensual } = useEstadisticas(rango)
 
   // --- Filtro de motivos para "Rentabilidad mensual" (recalcula en el back-end) ---
   const handleFiltroRentabilidadMensual = (motivos) => {
@@ -62,7 +95,7 @@ export default function Dashboard({ onNavigate }) {
   return (
     <div className="dashboard">
       <header className="dashboard__hero">
-        <button className="back-btn" onClick={() => onNavigate('home')}>← Inicio</button>
+        <button className="back-btn" onClick={() => navigate('/')}>← Inicio</button>
         <div className="hero__eyebrow">Panel de licitaciones · Cartera de seguros</div>
         <h1 className="hero__title">
           {loading ? (
@@ -78,6 +111,33 @@ export default function Dashboard({ onNavigate }) {
           Estado en vivo de la cartera: cuánto se cotiza, cuánto se gana y dónde está la
           rentabilidad, riesgo por riesgo, mes a mes.
         </p>
+
+        <div className="hero__filtro-fecha">
+          <label className="hero__filtro-campo">
+            <span>Desde</span>
+            <input
+              type="month"
+              value={mesDesdeInput}
+              onChange={(e) => setMesDesdeInput(e.target.value)}
+              max={mesHastaInput || undefined}
+            />
+          </label>
+          <label className="hero__filtro-campo">
+            <span>Hasta</span>
+            <input
+              type="month"
+              value={mesHastaInput}
+              onChange={(e) => setMesHastaInput(e.target.value)}
+              min={mesDesdeInput || undefined}
+            />
+          </label>
+          <button className="hero__filtro-btn" onClick={aplicarRango}>Aplicar</button>
+          {hayRangoAplicado ? (
+            <button className="hero__filtro-btn hero__filtro-btn--ghost" onClick={limpiarRango}>
+              Limpiar
+            </button>
+          ) : null}
+        </div>
       </header>
 
       {error ? (

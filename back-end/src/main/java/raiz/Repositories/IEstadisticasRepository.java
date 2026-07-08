@@ -30,22 +30,37 @@ import raiz.dominio.estadisticas.ICantidadLicitacionesPorMes;
 
 import java.util.List;
 
+// NOTA SOBRE EL FILTRO DE FECHAS:
+// Todas las consultas reciben "fechaDesde" y "fechaHasta" como String opcionales
+// (formato 'yyyy-MM-dd', el mismo que devuelve un <input type="date"> del front).
+// El patrón "(:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)" hace que, si no se
+// manda el parámetro, la condición sea un no-op (no filtra nada); si se manda,
+// filtra por el campo "fecha" de licitacion_riesgo, que es donde vive la fecha real
+// de cada renglón cotizado.
 @Repository
 public interface IEstadisticasRepository extends org.springframework.data.repository.Repository<Licitacion, Long>{
 
-    @Query(value = "SELECT COUNT(DISTINCT numero_compulsa) AS cant_licitaciones \n" +
-            "FROM licitacion", nativeQuery = true)
-    ITotalLicitacionesUnicas getCantLicitaciones();
+    @Query(value = "SELECT COUNT(DISTINCT l.numero_compulsa) AS cant_licitaciones \n" +
+            "FROM licitacion AS l\n" +
+            "INNER JOIN licitacion_riesgo AS l_r ON l_r.id_licitacion = l.id\n" +
+            "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    ITotalLicitacionesUnicas getCantLicitaciones(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     @Query(value = "SELECT \n" +
             "    FORMAT(\n" +
-            "        (COUNT(*) / (SELECT COUNT(*) FROM licitacion_riesgo WHERE id_status <> 2)) * 100, \n" +
+            "        (COUNT(*) / (SELECT COUNT(*) FROM licitacion_riesgo \n" +
+            "            WHERE id_status <> 2\n" +
+            "              AND (:fechaDesde IS NULL OR fecha >= :fechaDesde)\n" +
+            "              AND (:fechaHasta IS NULL OR fecha <= :fechaHasta))) * 100, \n" +
             "        2, \n" +
             "        'de_DE'\n" +
             "    ) AS winrate \n" +
             "FROM licitacion_riesgo \n" +
-            "WHERE id_status = 3", nativeQuery = true)
-    IWinrateGlobal getWinrateGlobal();
+            "WHERE id_status = 3\n" +
+            "  AND (:fechaDesde IS NULL OR fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR fecha <= :fechaHasta)", nativeQuery = true)
+    IWinrateGlobal getWinrateGlobal(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     @Query(value = "SELECT \n" +
             "    CONCAT(COALESCE(mes_nombre, 'Sin Mes Asignado'), CASE WHEN anio IS NOT NULL THEN CONCAT('/', anio) ELSE '' END) AS mes, \n" +
@@ -64,10 +79,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    LEFT JOIN Mes AS m ON m.id = l_r.id_mes\n" +
             "    LEFT JOIN Licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "    WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
             ") AS agregados\n" +
             "ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
-    List<IEvolucionMensual> getEvolucionMensual();
+    List<IEvolucionMensual> getEvolucionMensual(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     @Query(value = "WITH RankingsComoCTE AS (\n" +
             "    SELECT \n" +
@@ -83,6 +100,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    INNER JOIN entidad_adjudicada AS e_a ON e_a.id = l_r.id_adjudicada\n" +
+            "    WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY e_a.detalle, r.detalle\n" +
             "),\n" +
             "TopCotizado AS (\n" +
@@ -113,7 +132,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "SELECT ranking, compania, riesgo, monto_cotizado, monto_adjudicado, tipo \n" +
             "FROM TopAdjudicado\n" +
             "ORDER BY tipo DESC, ranking ASC", nativeQuery = true)
-    List<ITopRiesgos> getTopRiesgos();
+    List<ITopRiesgos> getTopRiesgos(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 7. SHARE DE CLIENTES Y SU TASA DE ÉXITO (TOP 5)
@@ -126,6 +145,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FROM licitacion_riesgo AS l_r\n" +
             "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "    WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY l.id_cliente\n" +
             "),\n" +
             "RankingClientes AS (\n" +
@@ -140,7 +161,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "SELECT ranking, cliente, total_compulsas_participadas, tasa_exito_porcentaje\n" +
             "FROM RankingClientes\n" +
             "WHERE ranking <= 5", nativeQuery = true)
-    List<ITopClientesTasaExito> getTopClientesTasaExito();
+    List<ITopClientesTasaExito> getTopClientesTasaExito(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 8. ANÁLISIS COMPETITIVO: FUGAS POR COMPETIDOR
@@ -157,10 +178,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN entidad_adjudicada AS ea ON ea.id = l_r.id_adjudicada \n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY ea.detalle\n" +
             "HAVING SUM(l_r.monto_adjudicado) > 0\n" +
             "ORDER BY compulsas_ganadas DESC", nativeQuery = true)
-    List<IFugasPorCompetidor> getFugasPorCompetidor();
+    List<IFugasPorCompetidor> getFugasPorCompetidor(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 9. VOLUMEN ECONÓMICO DE PÉRDIDAS POR MOTIVO
@@ -172,9 +195,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Perdida' AND l_r.motivo IS NOT NULL\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY l_r.motivo\n" +
             "ORDER BY cantidad_casos DESC", nativeQuery = true)
-    List<IPerdidasPorMotivo> getPerdidasPorMotivo();
+    List<IPerdidasPorMotivo> getPerdidasPorMotivo(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 10. CORRELACIÓN: DESVÍO DE PRECIO VS MOTIVO DE RECHAZO (POR RENGLÓN)
@@ -189,6 +214,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FROM licitacion_riesgo AS l_r\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "    WHERE s.detalle <> 'Desistida'\n" +
+            "      AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY l_r.id_riesgo\n" +
             ")\n" +
             "SELECT \n" +
@@ -210,6 +237,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN MetricasPorRiesgo AS m_r ON m_r.id_riesgo = l_r.id_riesgo\n" +
             "WHERE s.detalle = 'Perdida' \n" +
             "  AND l_r.motivo IS NOT NULL\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY \n" +
             "    r.id, \n" +
             "    r.detalle, \n" +
@@ -221,7 +250,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "ORDER BY \n" +
             "    r.detalle ASC, \n" +
             "    COUNT(DISTINCT l_r.id_licitacion) DESC", nativeQuery = true)
-    List<IDesvioPrecioPorMotivo> getDesvioPrecioPorMotivo();
+    List<IDesvioPrecioPorMotivo> getDesvioPrecioPorMotivo(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 10.1 RESUMEN DE MONTOS COTIZADOS Y ADJUDICADOS POR RIESGO (EXCLUYENDO DESISTIDAS)
@@ -230,9 +259,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo l_r \n" +
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "WHERE l_r.id_status <> 2\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY r.detalle\n" +
             "ORDER BY SUM(l_r.monto_cotizado) DESC, SUM(l_r.monto_adjudicado) DESC", nativeQuery = true)
-    List<IResumenMontosPorRiesgo> getResumenMontosPorRiesgo();
+    List<IResumenMontosPorRiesgo> getResumenMontosPorRiesgo(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 12. RENTABILIDAD FINANCIERA MENSUAL (APERTURA POR MES)
@@ -259,10 +290,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "        INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "        WHERE s.detalle <> 'Desistida'\n" +
+            "          AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "          AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "        GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
             "    ) AS agregados\n" +
             ") AS subconsulta ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
-    List<IRentabilidadMensual> getRentabilidadMensual();
+    List<IRentabilidadMensual> getRentabilidadMensual(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 12.1 RENTABILIDAD FINANCIERA MENSUAL FILTRADA POR MOTIVO(S)
@@ -290,10 +323,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "        WHERE s.detalle <> 'Desistida'\n" +
             "          AND l_r.motivo IN (:motivos)\n" +
+            "          AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "          AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "        GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
             "    ) AS agregados\n" +
             ") AS subconsulta ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
-    List<IRentabilidadMensual> getRentabilidadMensualPorMotivos(@Param("motivos") List<String> motivos);
+    List<IRentabilidadMensual> getRentabilidadMensualPorMotivos(@Param("motivos") List<String> motivos, @Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 12. RENTABILIDAD FINANCIERA GLOBAL (PORCENTAJE DE BENEFICIO)
@@ -304,8 +339,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FORMAT((SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) * 100.0) / NULLIF(SUM(l_r.monto_cotizado), 0), 2, 'de_DE') AS porcentaje_beneficio\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "WHERE s.detalle <> 'Desistida'", nativeQuery = true)
-    IRentabilidadGlobal getRentabilidadGlobal();
+            "WHERE s.detalle <> 'Desistida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    IRentabilidadGlobal getRentabilidadGlobal(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // 12. RENTABILIDAD FINANCIERA POR RIESGO (PORCENTAJE DE BENEFICIO)
@@ -331,10 +368,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    LEFT JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "    WHERE s.detalle <> 'Desistida'\n" +
+            "      AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY l_r.id_riesgo, r.detalle\n" +
             ") AS subconsulta \n" +
             "ORDER BY riesgo ASC", nativeQuery = true)
-    List<IRentabilidadPorRiesgo> getRentabilidadPorRiesgo();
+    List<IRentabilidadPorRiesgo> getRentabilidadPorRiesgo(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // A. CONTEO DE COMPULSAS/LICITACIONES ÚNICAS POR ESTADO HISTÓRICO
@@ -344,8 +383,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    COUNT(*) AS cantidad_compulsas\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY s.detalle", nativeQuery = true)
-    List<IEstadoLicitaciones> getEstadoLicitaciones();
+    List<IEstadoLicitaciones> getEstadoLicitaciones(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // B. ANÁLISIS DE GANADAS: APERTURA POR MOTIVO ESPECÍFICO
@@ -356,8 +397,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Ganada'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY l_r.motivo", nativeQuery = true)
-    List<IMotivoGanada> getMotivoGanada();
+    List<IMotivoGanada> getMotivoGanada(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // C. TOTAL ABSOLUTO ADJUDICADO EN PROCESOS EXITOSOS
@@ -366,8 +409,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS total_adjudicado_ganadas\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "WHERE s.detalle = 'Ganada'", nativeQuery = true)
-    ITotalAdjudicadoGanadas getTotalAdjudicadoGanadas();
+            "WHERE s.detalle = 'Ganada'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    ITotalAdjudicadoGanadas getTotalAdjudicadoGanadas(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // D. RANKING DE RENGLONES (RIESGOS) CON MAYOR CANTIDAD DE ÉXITOS
@@ -379,9 +424,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Ganada'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY r.detalle\n" +
             "ORDER BY cantidad_renglones_ganados DESC", nativeQuery = true)
-    List<IRankingRiesgosGanados> getRankingRiesgosGanados();
+    List<IRankingRiesgosGanados> getRankingRiesgosGanados(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // E. RELACIÓN DE PÉRDIDAS: RELACIÓN PORCENTUAL DE NUESTRO PRECIO VS EL COMPETIDOR
@@ -394,8 +441,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    ) AS sobreprecio_promedio_porcentaje\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "WHERE s.detalle = 'Perdida' AND l_r.monto_adjudicado > 0", nativeQuery = true)
-    ISobreprecioPromedio getSobreprecioPromedio();
+            "WHERE s.detalle = 'Perdida' AND l_r.monto_adjudicado > 0\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    ISobreprecioPromedio getSobreprecioPromedio(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // F. RENTABILIDAD RESIDUAL DE RIESGOS EN PÉRDIDAS: DÓNDE SE PERDIÓ MÁS VOLUMEN COMERCIAL
@@ -408,17 +457,21 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Perdida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY r.detalle\n" +
             "ORDER BY SUM(l_r.monto_cotizado) DESC", nativeQuery = true)
-    List<IRentabilidadResidualPerdidas> getRentabilidadResidualPerdidas();
+    List<IRentabilidadResidualPerdidas> getRentabilidadResidualPerdidas(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // G.1 RADIOGRAFÍA DE DESISTIDAS: CANTIDAD TOTAL DE PROCESOS DESISTIDOS
     // ============================================================================
     @Query(value = "SELECT COUNT(*) AS total_compulsas_desistidas \n" +
             "FROM licitacion_riesgo AS l_r\n" +
-            "INNER JOIN status AS s ON s.id = l_r.id_status WHERE s.detalle = 'Desistida'", nativeQuery = true)
-    ITotalDesistidas getTotalDesistidas();
+            "INNER JOIN status AS s ON s.id = l_r.id_status WHERE s.detalle = 'Desistida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    ITotalDesistidas getTotalDesistidas(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // G.2 RADIOGRAFÍA DE DESISTIDAS: TOP MOTIVOS DE DESISTIMIENTO
@@ -431,9 +484,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Desistida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY l_r.motivo, l_r.estado_motivo\n" +
             "ORDER BY cantidad_casos DESC", nativeQuery = true)
-    List<ITopMotivosDesistidas> getTopMotivosDesistidas();
+    List<ITopMotivosDesistidas> getTopMotivosDesistidas(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // G.3 RADIOGRAFÍA DE DESISTIDAS: MASA ADJUDICADA TEÓRICA DESISTIDA
@@ -441,8 +496,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "SELECT FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS cantidad_adjudicada_total_desistida\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "WHERE s.detalle = 'Desistida'", nativeQuery = true)
-    IMontoAdjudicadoDesistido getMontoAdjudicadoDesistido();
+            "WHERE s.detalle = 'Desistida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+    IMontoAdjudicadoDesistido getMontoAdjudicadoDesistido(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // G.4 RADIOGRAFÍA DE DESISTIDAS: RENGLONES (RIESGOS) MÁS DESISTIDOS HISTÓRICAMENTE
@@ -454,9 +511,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Desistida'\n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY r.detalle\n" +
             "ORDER BY cantidad_desistidos DESC", nativeQuery = true)
-    List<IRenglonesDesistidos> getRenglonesDesistidos();
+    List<IRenglonesDesistidos> getRenglonesDesistidos(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // H. LISTA DE MOTIVOS DISTINTOS DISPONIBLES (PARA FILTROS DEL FRONT-END)
@@ -464,8 +523,10 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "SELECT DISTINCT l_r.motivo \n" +
             "FROM licitacion_riesgo AS l_r \n" +
             "WHERE l_r.motivo IS NOT NULL \n" +
+            "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "ORDER BY l_r.motivo ASC", nativeQuery = true)
-    List<String> getMotivosDisponibles();
+    List<String> getMotivosDisponibles(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // ============================================================================
     // I. CANTIDAD DE LICITACIONES POR MES (CON FILTRO OPCIONAL POR MOTIVO)
@@ -483,10 +544,12 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
             ") AS agregados\n" +
             "ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
-    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMes();
+    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMes(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     // Version filtrada: usa una CTE con TODOS los periodos (mes/año) que existen en la
     // base para que, aunque el filtro por motivo no tenga datos en un mes puntual,
@@ -499,6 +562,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "    WHERE l_r.fecha IS NOT NULL\n" +
+            "      AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "),\n" +
             "filtrado AS (\n" +
             "    SELECT \n" +
@@ -509,6 +574,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    WHERE l_r.fecha IS NOT NULL\n" +
             "      AND l_r.motivo IN (:motivos)\n" +
+            "      AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "    GROUP BY YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
             ")\n" +
             "SELECT \n" +
@@ -518,6 +585,6 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM periodos AS p\n" +
             "LEFT JOIN filtrado AS f ON f.anio = p.anio AND f.mes_num = p.mes_num\n" +
             "ORDER BY p.anio ASC, p.mes_num ASC", nativeQuery = true)
-    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMesPorMotivos(@Param("motivos") List<String> motivos);
+    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMesPorMotivos(@Param("motivos") List<String> motivos, @Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
 }

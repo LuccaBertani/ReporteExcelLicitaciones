@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { ExcelAPI } from './api/estadisticas'
 import './pages.css'
 
@@ -32,7 +33,8 @@ const RIESGOS_SOPORTADOS = [
   'VIDA', 'SALUD', 'FRANQUICIAS',
 ]
 
-export default function UploadPage({ onNavigate }) {
+export default function UploadPage() {
+  const navigate = useNavigate()
   const [archivo, setArchivo] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [estado, setEstado] = useState(null) // null | 'cargando' | 'ok' | 'error'
@@ -87,7 +89,7 @@ export default function UploadPage({ onNavigate }) {
   return (
     <div className="upload-page">
       <header className="upload-header">
-        <button className="back-btn" onClick={() => onNavigate('home')}>← Volver</button>
+        <button className="back-btn" onClick={() => navigate('/')}>← Volver</button>
         <div className="upload-header__eyebrow">Carga de datos · Excel</div>
         <h1 className="upload-header__title">Importar nuevas licitaciones</h1>
         <p className="upload-header__desc">

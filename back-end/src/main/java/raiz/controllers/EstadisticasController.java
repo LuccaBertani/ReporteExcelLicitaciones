@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import raiz.componentes.EstadisticasService;
+import raiz.services.EstadisticasService;
 import raiz.dominio.estadisticas.*;
 
 import java.util.List;
@@ -24,124 +24,172 @@ public class EstadisticasController {
     }
 
     @GetMapping("/total-licitaciones")
-    public ResponseEntity<ITotalLicitacionesUnicas> totalLicitaciones() {
-        return this.estadisticasService.cantLicitaciones();
+    public ResponseEntity<ITotalLicitacionesUnicas> totalLicitaciones(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.cantLicitaciones(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/winrate-global")
-    public ResponseEntity<IWinrateGlobal> getWinrateGlobal() {
-        return this.estadisticasService.getWinrateGlobal();
+    public ResponseEntity<IWinrateGlobal> getWinrateGlobal(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getWinrateGlobal(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/evolucion-mensual")
-    public ResponseEntity<List<IEvolucionMensual>> getEvolucionMensual() {
-        return this.estadisticasService.getEvolucionMensual();
+    public ResponseEntity<List<IEvolucionMensual>> getEvolucionMensual(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getEvolucionMensual(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/top-riesgos")
-    public ResponseEntity<List<ITopRiesgos>> getTopRiesgos() {
-        return this.estadisticasService.getTopRiesgos();
+    public ResponseEntity<List<ITopRiesgos>> getTopRiesgos(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getTopRiesgos(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/top-clientes-tasa-exito")
-    public ResponseEntity<List<ITopClientesTasaExito>> getTopClientesTasaExito() {
-        return this.estadisticasService.getTopClientesTasaExito();
+    public ResponseEntity<List<ITopClientesTasaExito>> getTopClientesTasaExito(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getTopClientesTasaExito(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/fugas-competidor")
-    public ResponseEntity<List<IFugasPorCompetidor>> getFugasPorCompetidor() {
-        return this.estadisticasService.getFugasPorCompetidor();
+    public ResponseEntity<List<IFugasPorCompetidor>> getFugasPorCompetidor(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getFugasPorCompetidor(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/perdidas-motivo")
-    public ResponseEntity<List<IPerdidasPorMotivo>> getPerdidasPorMotivo() {
-        return this.estadisticasService.getPerdidasPorMotivo();
+    public ResponseEntity<List<IPerdidasPorMotivo>> getPerdidasPorMotivo(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getPerdidasPorMotivo(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/desvio-precio-motivo")
-    public ResponseEntity<List<IDesvioPrecioPorMotivo>> getDesvioPrecioPorMotivo() {
-        return this.estadisticasService.getDesvioPrecioPorMotivo();
+    public ResponseEntity<List<IDesvioPrecioPorMotivo>> getDesvioPrecioPorMotivo(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getDesvioPrecioPorMotivo(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/resumen-montos-riesgo")
-    public ResponseEntity<List<IResumenMontosPorRiesgo>> getResumenMontosPorRiesgo() {
-        return this.estadisticasService.getResumenMontosPorRiesgo();
+    public ResponseEntity<List<IResumenMontosPorRiesgo>> getResumenMontosPorRiesgo(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getResumenMontosPorRiesgo(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/rentabilidad-mensual")
     public ResponseEntity<List<IRentabilidadMensual>> getRentabilidadMensual(
-            @RequestParam(name = "motivos", required = false) List<String> motivos) {
-        return this.estadisticasService.getRentabilidadMensual(motivos);
+            @RequestParam(name = "motivos", required = false) List<String> motivos,
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRentabilidadMensual(motivos, fechaDesde, fechaHasta);
     }
 
     @GetMapping("/rentabilidad-global")
-    public ResponseEntity<IRentabilidadGlobal> getRentabilidadGlobal() {
-        return this.estadisticasService.getRentabilidadGlobal();
+    public ResponseEntity<IRentabilidadGlobal> getRentabilidadGlobal(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRentabilidadGlobal(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/rentabilidad-riesgo")
-    public ResponseEntity<List<IRentabilidadPorRiesgo>> getRentabilidadPorRiesgo() {
-        return this.estadisticasService.getRentabilidadPorRiesgo();
+    public ResponseEntity<List<IRentabilidadPorRiesgo>> getRentabilidadPorRiesgo(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRentabilidadPorRiesgo(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/estado-licitaciones")
-    public ResponseEntity<List<IEstadoLicitaciones>> getEstadoLicitaciones() {
-        return this.estadisticasService.getEstadoLicitaciones();
+    public ResponseEntity<List<IEstadoLicitaciones>> getEstadoLicitaciones(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getEstadoLicitaciones(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/motivo-ganada")
-    public ResponseEntity<List<IMotivoGanada>> getMotivoGanada() {
-        return this.estadisticasService.getMotivoGanada();
+    public ResponseEntity<List<IMotivoGanada>> getMotivoGanada(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getMotivoGanada(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/total-adjudicado-ganadas")
-    public ResponseEntity<ITotalAdjudicadoGanadas> getTotalAdjudicadoGanadas() {
-        return this.estadisticasService.getTotalAdjudicadoGanadas();
+    public ResponseEntity<ITotalAdjudicadoGanadas> getTotalAdjudicadoGanadas(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getTotalAdjudicadoGanadas(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/ranking-riesgos-ganados")
-    public ResponseEntity<List<IRankingRiesgosGanados>> getRankingRiesgosGanados() {
-        return this.estadisticasService.getRankingRiesgosGanados();
+    public ResponseEntity<List<IRankingRiesgosGanados>> getRankingRiesgosGanados(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRankingRiesgosGanados(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/sobreprecio-promedio")
-    public ResponseEntity<ISobreprecioPromedio> getSobreprecioPromedio() {
-        return this.estadisticasService.getSobreprecioPromedio();
+    public ResponseEntity<ISobreprecioPromedio> getSobreprecioPromedio(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getSobreprecioPromedio(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/rentabilidad-residual-perdidas")
-    public ResponseEntity<List<IRentabilidadResidualPerdidas>> getRentabilidadResidualPerdidas() {
-        return this.estadisticasService.getRentabilidadResidualPerdidas();
+    public ResponseEntity<List<IRentabilidadResidualPerdidas>> getRentabilidadResidualPerdidas(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRentabilidadResidualPerdidas(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/total-desistidas")
-    public ResponseEntity<ITotalDesistidas> getTotalDesistidas() {
-        return this.estadisticasService.getTotalDesistidas();
+    public ResponseEntity<ITotalDesistidas> getTotalDesistidas(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getTotalDesistidas(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/top-motivos-desistidas")
-    public ResponseEntity<List<ITopMotivosDesistidas>> getTopMotivosDesistidas() {
-        return this.estadisticasService.getTopMotivosDesistidas();
+    public ResponseEntity<List<ITopMotivosDesistidas>> getTopMotivosDesistidas(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getTopMotivosDesistidas(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/monto-adjudicado-desistido")
-    public ResponseEntity<IMontoAdjudicadoDesistido> getMontoAdjudicadoDesistido() {
-        return this.estadisticasService.getMontoAdjudicadoDesistido();
+    public ResponseEntity<IMontoAdjudicadoDesistido> getMontoAdjudicadoDesistido(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getMontoAdjudicadoDesistido(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/renglones-desistidos")
-    public ResponseEntity<List<IRenglonesDesistidos>> getRenglonesDesistidos() {
-        return this.estadisticasService.getRenglonesDesistidos();
+    public ResponseEntity<List<IRenglonesDesistidos>> getRenglonesDesistidos(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getRenglonesDesistidos(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/motivos-disponibles")
-    public ResponseEntity<List<String>> getMotivosDisponibles() {
-        return this.estadisticasService.getMotivosDisponibles();
+    public ResponseEntity<List<String>> getMotivosDisponibles(
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getMotivosDisponibles(fechaDesde, fechaHasta);
     }
 
     @GetMapping("/cantidad-licitaciones-mensual")
     public ResponseEntity<List<ICantidadLicitacionesPorMes>> getCantidadLicitacionesPorMes(
-            @RequestParam(name = "motivos", required = false) List<String> motivos) {
-        return this.estadisticasService.getCantidadLicitacionesPorMes(motivos);
+            @RequestParam(name = "motivos", required = false) List<String> motivos,
+            @RequestParam(name = "fechaDesde", required = false) String fechaDesde,
+            @RequestParam(name = "fechaHasta", required = false) String fechaHasta) {
+        return this.estadisticasService.getCantidadLicitacionesPorMes(motivos, fechaDesde, fechaHasta);
     }
 }

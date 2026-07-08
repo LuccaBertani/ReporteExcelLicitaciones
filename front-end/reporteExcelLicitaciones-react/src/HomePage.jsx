@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import './pages.css'
 
-export default function HomePage({ onNavigate }) {
+export default function HomePage() {
+  const navigate = useNavigate()
+
   return (
     <div className="home-page">
       <div className="home-hero">
@@ -12,7 +15,7 @@ export default function HomePage({ onNavigate }) {
       </div>
 
       <div className="home-cards">
-        <button className="home-card home-card--dashboard" onClick={() => onNavigate('dashboard')}>
+        <button className="home-card home-card--dashboard" onClick={() => navigate('/dashboard')}>
           <span className="home-card__icon">📊</span>
           <h2 className="home-card__title">Ver estadísticas</h2>
           <p className="home-card__desc">
@@ -27,7 +30,7 @@ export default function HomePage({ onNavigate }) {
           <span className="home-card__arrow">↗</span>
         </button>
 
-        <button className="home-card home-card--upload" onClick={() => onNavigate('upload')}>
+        <button className="home-card home-card--upload" onClick={() => navigate('/upload')}>
           <span className="home-card__icon">📥</span>
           <h2 className="home-card__title">Cargar Excel</h2>
           <p className="home-card__desc">
