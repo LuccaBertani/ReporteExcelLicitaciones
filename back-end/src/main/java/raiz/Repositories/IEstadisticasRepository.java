@@ -76,8 +76,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        SUM(l_r.monto_cotizado) AS total_cotizado,\n" +
             "        SUM(CASE WHEN s.detalle <> 'Desistida' THEN l_r.monto_adjudicado ELSE 0 END) AS total_adjudicado\n" +
             "    FROM licitacion_riesgo AS l_r \n" +
-            "    LEFT JOIN Mes AS m ON m.id = l_r.id_mes\n" +
-            "    LEFT JOIN Licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
+            "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "    WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
             "      AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
