@@ -19,14 +19,11 @@ RUN npm run build
 
 # ---------- Etapa 2: runtime ----------
 # Servimos los archivos estáticos generados (carpeta dist/) con nginx.
+# Puerto FIJO en 8080 (sin depender de la detección automática de Railway,
+# que nos estaba dando problemas): en Railway, Settings → Networking →
+# el "target port" del dominio tiene que ser 8080 también.
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# Usamos un ARCHIVO TEMPLATE en vez de un nginx.conf fijo: la imagen oficial
-# de nginx reemplaza automáticamente ${PORT} por el valor real al arrancar el
-# contenedor. Esto hace falta porque Railway asigna un puerto dinámico
-# (variable de entorno PORT) distinto en cada deploy; en Docker Compose local
-# seguimos fijándolo en 80.
-COPY nginx.conf.template /etc/nginx/templates/default.conf.template
-ENV PORT=80
-EXPOSE 80
+EXPOSE 8080
