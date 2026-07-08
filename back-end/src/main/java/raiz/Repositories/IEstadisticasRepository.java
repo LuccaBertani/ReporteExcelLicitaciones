@@ -1,6 +1,7 @@
 package raiz.Repositories;
 
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import raiz.dominio.Licitacion;
 import raiz.dominio.estadisticas.IEvolucionMensual;
@@ -25,6 +26,7 @@ import raiz.dominio.estadisticas.ITotalDesistidas;
 import raiz.dominio.estadisticas.ITopMotivosDesistidas;
 import raiz.dominio.estadisticas.IMontoAdjudicadoDesistido;
 import raiz.dominio.estadisticas.IRenglonesDesistidos;
+import raiz.dominio.estadisticas.ICantidadLicitacionesPorMes;
 
 import java.util.List;
 
@@ -46,15 +48,25 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     IWinrateGlobal getWinrateGlobal();
 
     @Query(value = "SELECT \n" +
-            "    COALESCE(m.detalle, 'Sin Mes Asignado') AS mes, \n" +
-            "    COUNT(DISTINCT l.numero_compulsa) AS cantidad_licitaciones, \n" +
-            "    FORMAT(SUM(l_r.monto_cotizado), 2, 'de_DE') AS total_cotizado, \n" +
-            "    FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS total_adjudicado\n" +
-            "FROM licitacion_riesgo AS l_r \n" +
-            "LEFT JOIN Mes AS m ON m.id = l_r.id_mes\n" +
-            "LEFT JOIN Licitacion AS l ON l.id = l_r.id_licitacion\n" +
-            "GROUP BY m.detalle, l_r.id_mes\n" +
-            "ORDER BY l_r.id_mes ASC", nativeQuery = true)
+            "    CONCAT(COALESCE(mes_nombre, 'Sin Mes Asignado'), CASE WHEN anio IS NOT NULL THEN CONCAT('/', anio) ELSE '' END) AS mes, \n" +
+            "    cantidad_licitaciones, \n" +
+            "    FORMAT(total_cotizado, 2, 'de_DE') AS total_cotizado, \n" +
+            "    FORMAT(total_adjudicado, 2, 'de_DE') AS total_adjudicado\n" +
+            "FROM (\n" +
+            "    SELECT \n" +
+            "        YEAR(l_r.fecha) AS anio,\n" +
+            "        MONTH(l_r.fecha) AS mes_num,\n" +
+            "        m.detalle AS mes_nombre,\n" +
+            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad_licitaciones,\n" +
+            "        SUM(l_r.monto_cotizado) AS total_cotizado,\n" +
+            "        SUM(CASE WHEN s.detalle <> 'Desistida' THEN l_r.monto_adjudicado ELSE 0 END) AS total_adjudicado\n" +
+            "    FROM licitacion_riesgo AS l_r \n" +
+            "    LEFT JOIN Mes AS m ON m.id = l_r.id_mes\n" +
+            "    LEFT JOIN Licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "    GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
+            ") AS agregados\n" +
+            "ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
     List<IEvolucionMensual> getEvolucionMensual();
 
     @Query(value = "WITH RankingsComoCTE AS (\n" +
@@ -226,25 +238,62 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // 12. RENTABILIDAD FINANCIERA MENSUAL (APERTURA POR MES)
     // ============================================================================
     @Query(value = "SELECT \n" +
-            "    id_mes, mes, cant_cotizada, cant_ganada, \n" +
+            "    mes_num AS id_mes, mes, cant_cotizada, cant_ganada, \n" +
             "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio,\n" +
             "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS compulsas_ganadas,\n" +
             "    FORMAT((licitaciones_ganadas * 100.0) / NULLIF(licitaciones_totales, 0), 2, 'de_DE') AS winrate\n" +
             "FROM (\n" +
             "    SELECT \n" +
-            "        l_r.id_mes, COALESCE(m.detalle, 'Sin Mes Asignado') AS mes,\n" +
-            "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
-            "        COUNT(*) AS licitaciones_totales,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
-            "    FROM licitacion_riesgo AS l_r\n" +
-            "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
-            "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
-            "    INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
-            "    WHERE s.detalle <> 'Desistida'\n" +
-            "    GROUP BY l_r.id_mes, m.detalle\n" +
-            ") AS subconsulta ORDER BY id_mes ASC", nativeQuery = true)
+            "        anio, mes_num,\n" +
+            "        CONCAT(COALESCE(mes_nombre, 'Sin Mes Asignado'), CASE WHEN anio IS NOT NULL THEN CONCAT('/', anio) ELSE '' END) AS mes,\n" +
+            "        cant_cotizada, cant_ganada, licitaciones_totales, licitaciones_ganadas\n" +
+            "    FROM (\n" +
+            "        SELECT \n" +
+            "            YEAR(l_r.fecha) AS anio, MONTH(l_r.fecha) AS mes_num, m.detalle AS mes_nombre,\n" +
+            "            SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
+            "            SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "            COUNT(*) AS licitaciones_totales,\n" +
+            "            SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
+            "        FROM licitacion_riesgo AS l_r\n" +
+            "        LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
+            "        INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "        INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "        WHERE s.detalle <> 'Desistida'\n" +
+            "        GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
+            "    ) AS agregados\n" +
+            ") AS subconsulta ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
     List<IRentabilidadMensual> getRentabilidadMensual();
+
+    // ============================================================================
+    // 12.1 RENTABILIDAD FINANCIERA MENSUAL FILTRADA POR MOTIVO(S)
+    // ============================================================================
+    @Query(value = "SELECT \n" +
+            "    mes_num AS id_mes, mes, cant_cotizada, cant_ganada, \n" +
+            "    FORMAT((cant_ganada * 100.0) / NULLIF(cant_cotizada, 0), 2, 'de_DE') AS porcentaje_beneficio,\n" +
+            "    FORMAT(licitaciones_ganadas, 0, 'de_DE') AS compulsas_ganadas,\n" +
+            "    FORMAT((licitaciones_ganadas * 100.0) / NULLIF(licitaciones_totales, 0), 2, 'de_DE') AS winrate\n" +
+            "FROM (\n" +
+            "    SELECT \n" +
+            "        anio, mes_num,\n" +
+            "        CONCAT(COALESCE(mes_nombre, 'Sin Mes Asignado'), CASE WHEN anio IS NOT NULL THEN CONCAT('/', anio) ELSE '' END) AS mes,\n" +
+            "        cant_cotizada, cant_ganada, licitaciones_totales, licitaciones_ganadas\n" +
+            "    FROM (\n" +
+            "        SELECT \n" +
+            "            YEAR(l_r.fecha) AS anio, MONTH(l_r.fecha) AS mes_num, m.detalle AS mes_nombre,\n" +
+            "            SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
+            "            SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "            COUNT(*) AS licitaciones_totales,\n" +
+            "            SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
+            "        FROM licitacion_riesgo AS l_r\n" +
+            "        LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
+            "        INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "        INNER JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "        WHERE s.detalle <> 'Desistida'\n" +
+            "          AND l_r.motivo IN (:motivos)\n" +
+            "        GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
+            "    ) AS agregados\n" +
+            ") AS subconsulta ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
+    List<IRentabilidadMensual> getRentabilidadMensualPorMotivos(@Param("motivos") List<String> motivos);
 
     // ============================================================================
     // 12. RENTABILIDAD FINANCIERA GLOBAL (PORCENTAJE DE BENEFICIO)
@@ -377,7 +426,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "SELECT \n" +
             "    COALESCE(l_r.motivo, 'Sin Motivo Especificado') AS motivo_desistida,\n" +
             "    COALESCE(l_r.estado_motivo, 'Sin detalle especificado') AS detalle_motivo,\n" +
-            "    COUNT(*) AS cantidad_casos\n" +
+            "    COUNT(*) AS cantidad_casos,\n" +
+            "    FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS monto_adjudicado\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle = 'Desistida'\n" +
@@ -407,5 +457,67 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "GROUP BY r.detalle\n" +
             "ORDER BY cantidad_desistidos DESC", nativeQuery = true)
     List<IRenglonesDesistidos> getRenglonesDesistidos();
+
+    // ============================================================================
+    // H. LISTA DE MOTIVOS DISTINTOS DISPONIBLES (PARA FILTROS DEL FRONT-END)
+    // ============================================================================
+    @Query(value = "SELECT DISTINCT l_r.motivo \n" +
+            "FROM licitacion_riesgo AS l_r \n" +
+            "WHERE l_r.motivo IS NOT NULL \n" +
+            "ORDER BY l_r.motivo ASC", nativeQuery = true)
+    List<String> getMotivosDisponibles();
+
+    // ============================================================================
+    // I. CANTIDAD DE LICITACIONES POR MES (CON FILTRO OPCIONAL POR MOTIVO)
+    // ============================================================================
+    @Query(value = "SELECT \n" +
+            "    mes_num AS id_mes,\n" +
+            "    CONCAT(COALESCE(mes_nombre, 'Sin Mes Asignado'), CASE WHEN anio IS NOT NULL THEN CONCAT('/', anio) ELSE '' END) AS mes,\n" +
+            "    cantidad_licitaciones\n" +
+            "FROM (\n" +
+            "    SELECT \n" +
+            "        YEAR(l_r.fecha) AS anio,\n" +
+            "        MONTH(l_r.fecha) AS mes_num,\n" +
+            "        m.detalle AS mes_nombre,\n" +
+            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad_licitaciones\n" +
+            "    FROM licitacion_riesgo AS l_r\n" +
+            "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
+            "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    GROUP BY m.detalle, YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
+            ") AS agregados\n" +
+            "ORDER BY anio ASC, mes_num ASC", nativeQuery = true)
+    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMes();
+
+    // Version filtrada: usa una CTE con TODOS los periodos (mes/año) que existen en la
+    // base para que, aunque el filtro por motivo no tenga datos en un mes puntual,
+    // ese mes igual aparezca en el resultado con cantidad 0 (en vez de directamente faltar).
+    @Query(value = "WITH periodos AS (\n" +
+            "    SELECT DISTINCT \n" +
+            "        YEAR(l_r.fecha) AS anio, \n" +
+            "        MONTH(l_r.fecha) AS mes_num,\n" +
+            "        COALESCE(m.detalle, 'Sin Mes Asignado') AS mes_nombre\n" +
+            "    FROM licitacion_riesgo AS l_r\n" +
+            "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
+            "    WHERE l_r.fecha IS NOT NULL\n" +
+            "),\n" +
+            "filtrado AS (\n" +
+            "    SELECT \n" +
+            "        YEAR(l_r.fecha) AS anio,\n" +
+            "        MONTH(l_r.fecha) AS mes_num,\n" +
+            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad\n" +
+            "    FROM licitacion_riesgo AS l_r\n" +
+            "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
+            "    WHERE l_r.fecha IS NOT NULL\n" +
+            "      AND l_r.motivo IN (:motivos)\n" +
+            "    GROUP BY YEAR(l_r.fecha), MONTH(l_r.fecha)\n" +
+            ")\n" +
+            "SELECT \n" +
+            "    p.mes_num AS id_mes,\n" +
+            "    CONCAT(p.mes_nombre, '/', p.anio) AS mes,\n" +
+            "    COALESCE(f.cantidad, 0) AS cantidad_licitaciones\n" +
+            "FROM periodos AS p\n" +
+            "LEFT JOIN filtrado AS f ON f.anio = p.anio AND f.mes_num = p.mes_num\n" +
+            "ORDER BY p.anio ASC, p.mes_num ASC", nativeQuery = true)
+    List<ICantidadLicitacionesPorMes> getCantidadLicitacionesPorMesPorMotivos(@Param("motivos") List<String> motivos);
 
 }

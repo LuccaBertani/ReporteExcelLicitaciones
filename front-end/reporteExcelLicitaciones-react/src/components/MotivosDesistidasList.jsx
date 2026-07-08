@@ -1,16 +1,15 @@
-import { num } from '../utils/formato'
+import { num, formatoMonedaCorta } from '../utils/formato'
 
 /**
  * Lista de motivos de desistimiento con barra de progreso relativa.
  */
 export default function MotivosDesistidasList({ data }) {
 
-  console.log("DATA:" + data);
-
   const rows = (data ?? [])
     .map((row) => ({
       motivo: row.motivo_desistida,
       cantidad: num(row.cantidad_casos),
+      monto: row.monto_adjudicado,
     }))
     .sort((a, b) => b.cantidad - a.cantidad)
 
@@ -43,6 +42,14 @@ export default function MotivosDesistidasList({ data }) {
               }}
             >
               {row.cantidad}
+            </span>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-dim)' }}>
+              Monto adjudicado teórico
+            </span>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
+              {formatoMonedaCorta(row.monto)}
             </span>
           </div>
           <div style={{ height: 4, background: 'var(--grid-line)', borderRadius: 2, overflow: 'hidden' }}>

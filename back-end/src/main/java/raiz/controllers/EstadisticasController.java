@@ -4,6 +4,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import raiz.componentes.EstadisticasService;
 import raiz.dominio.estadisticas.*;
@@ -68,8 +69,9 @@ public class EstadisticasController {
     }
 
     @GetMapping("/rentabilidad-mensual")
-    public ResponseEntity<List<IRentabilidadMensual>> getRentabilidadMensual() {
-        return this.estadisticasService.getRentabilidadMensual();
+    public ResponseEntity<List<IRentabilidadMensual>> getRentabilidadMensual(
+            @RequestParam(name = "motivos", required = false) List<String> motivos) {
+        return this.estadisticasService.getRentabilidadMensual(motivos);
     }
 
     @GetMapping("/rentabilidad-global")
@@ -130,5 +132,16 @@ public class EstadisticasController {
     @GetMapping("/renglones-desistidos")
     public ResponseEntity<List<IRenglonesDesistidos>> getRenglonesDesistidos() {
         return this.estadisticasService.getRenglonesDesistidos();
+    }
+
+    @GetMapping("/motivos-disponibles")
+    public ResponseEntity<List<String>> getMotivosDisponibles() {
+        return this.estadisticasService.getMotivosDisponibles();
+    }
+
+    @GetMapping("/cantidad-licitaciones-mensual")
+    public ResponseEntity<List<ICantidadLicitacionesPorMes>> getCantidadLicitacionesPorMes(
+            @RequestParam(name = "motivos", required = false) List<String> motivos) {
+        return this.estadisticasService.getCantidadLicitacionesPorMes(motivos);
     }
 }

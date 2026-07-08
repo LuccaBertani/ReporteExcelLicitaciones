@@ -56,6 +56,13 @@ public class EstadisticasService {
         return ResponseEntity.ok(this.estadisticasRepository.getRentabilidadMensual());
     }
 
+    public ResponseEntity<List<IRentabilidadMensual>> getRentabilidadMensual(List<String> motivos){
+        if (motivos == null || motivos.isEmpty()) {
+            return ResponseEntity.ok(this.estadisticasRepository.getRentabilidadMensual());
+        }
+        return ResponseEntity.ok(this.estadisticasRepository.getRentabilidadMensualPorMotivos(motivos));
+    }
+
     public ResponseEntity<IRentabilidadGlobal> getRentabilidadGlobal(){
         return ResponseEntity.ok(this.estadisticasRepository.getRentabilidadGlobal());
     }
@@ -102,5 +109,16 @@ public class EstadisticasService {
 
     public ResponseEntity<List<IRenglonesDesistidos>> getRenglonesDesistidos(){
         return ResponseEntity.ok(this.estadisticasRepository.getRenglonesDesistidos());
+    }
+
+    public ResponseEntity<List<String>> getMotivosDisponibles(){
+        return ResponseEntity.ok(this.estadisticasRepository.getMotivosDisponibles());
+    }
+
+    public ResponseEntity<List<ICantidadLicitacionesPorMes>> getCantidadLicitacionesPorMes(List<String> motivos){
+        if (motivos == null || motivos.isEmpty()) {
+            return ResponseEntity.ok(this.estadisticasRepository.getCantidadLicitacionesPorMes());
+        }
+        return ResponseEntity.ok(this.estadisticasRepository.getCantidadLicitacionesPorMesPorMotivos(motivos));
     }
 }

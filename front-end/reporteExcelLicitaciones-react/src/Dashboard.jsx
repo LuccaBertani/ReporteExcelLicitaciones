@@ -1,11 +1,12 @@
+import { useMemo, useState } from 'react'
 import { useEstadisticas } from './hooks/useEstadisticas'
 import KpiCard from './components/KpiCard'
 import Panel from './components/Panel'
 import EvolucionMensualChart from './components/EvolucionMensualChart'
 import TopRiesgosChart from './components/TopRiesgosChart'
-import TopClientesChart from './components/TopClientesChart'
 import EstadoLicitacionesChart from './components/EstadoLicitacionesChart'
 import RentabilidadMensualChart from './components/RentabilidadMensualChart'
+import CantidadLicitacionesMensualChart from './components/CantidadLicitacionesMensualChart'
 import FugasCompetidorChart from './components/FugasCompetidorChart'
 import MotivoGanadaChart from './components/MotivoGanadaChart'
 import RankingRiesgosGanadosChart from './components/RankingRiesgosGanadosChart'
@@ -23,7 +24,32 @@ function SectionTitle({ children }) {
 }
 
 export default function Dashboard({ onNavigate }) {
-  const { data, loading, error } = useEstadisticas()
+  const { data, loading, error, refetchRentabilidadMensual, refetchCantidadLicitacionesMensual } = useEstadisticas()
+
+  // --- Filtro de motivos para "Rentabilidad mensual" (recalcula en el back-end) ---
+  const handleFiltroRentabilidadMensual = (motivos) => {
+    refetchRentabilidadMensual(motivos)
+  }
+
+  // --- Filtro de motivos para "Cantidad de licitaciones por mes" (recalcula en el back-end) ---
+  const handleFiltroCantidadLicitaciones = (motivos) => {
+    refetchCantidadLicitacionesMensual(motivos)
+  }
+
+  // --- Filtro de motivos para "Motivos de desistimiento" (solo recorta lo ya cargado) ---
+  const [motivosDesistidasFiltro, setMotivosDesistidasFiltro] = useState([])
+
+  const opcionesMotivosDesistidas = useMemo(() => {
+    const motivos = (data.topMotivosDesistidas ?? []).map((row) => row.motivo_desistida)
+    return Array.from(new Set(motivos))
+  }, [data.topMotivosDesistidas])
+
+  const topMotivosDesistidasFiltrado = useMemo(() => {
+    if (motivosDesistidasFiltro.length === 0) return data.topMotivosDesistidas
+    return (data.topMotivosDesistidas ?? []).filter((row) =>
+      motivosDesistidasFiltro.includes(row.motivo_desistida)
+    )
+  }, [data.topMotivosDesistidas, motivosDesistidasFiltro])
 
   const winrate          = num(data.winrateGlobal?.winrate)
   const totalLicitaciones = num(data.totalLicitaciones?.cant_licitaciones)
@@ -44,7 +70,7 @@ export default function Dashboard({ onNavigate }) {
           ) : (
             <>
               <span className="hero__winrate">{formatoPorcentaje(winrate)}</span>
-              <span className="hero__winrate-label">de winrate global</span>
+              <span className="hero__winrate-label">de tasa de ganadas global</span>
             </>
           )}
         </h1>
@@ -64,7 +90,7 @@ export default function Dashboard({ onNavigate }) {
       <SectionTitle>Indicadores Clave</SectionTitle>
       <section className="kpi-grid kpi-grid--7">
         <KpiCard label="Licitaciones totales"   value={totalLicitaciones} format={formatoEntero}      accent="neutral" />
-        <KpiCard label="Winrate global"          value={winrate}          format={formatoPorcentaje}   accent="green"   />
+        <KpiCard label="Tasa de ganadas global"  value={winrate}          format={formatoPorcentaje}   accent="green"   />
         <KpiCard label="Adjudicado en ganadas"   value={totalAdjudicado}  format={formatoMonedaCorta}  accent="blue"    />
         <KpiCard label="Beneficio sobre cotizado" value={beneficio}       format={formatoPorcentaje}   accent="green"   />
         <KpiCard label="Sobreprecio promedio"    value={sobreprecio}      format={formatoPorcentaje}   accent="amber"   />
@@ -83,10 +109,21 @@ export default function Dashboard({ onNavigate }) {
         <Panel title="Top riesgos por monto adjudicado" subtitle="Los 8 riesgos con mayor volumen">
           {loading ? <PanelLoading /> : data.topRiesgos?.length ? <TopRiesgosChart data={data.topRiesgos} /> : <PanelEmpty />}
         </Panel>
-        <Panel title="Top clientes por tasa de éxito" subtitle="Clientes con mejor relación ganadas / total" className="panel--wide">
-          {loading ? <PanelLoading /> : data.topClientesTasaExito?.length ? <TopClientesChart data={data.topClientesTasaExito} /> : <PanelEmpty />}
+        <Panel
+          title="Cantidad de licitaciones por mes"
+          subtitle="Cantidad de licitaciones cotizadas por mes"
+          filtros={data.motivosDisponibles}
+          onFiltrosChange={handleFiltroCantidadLicitaciones}
+        >
+          {loading ? <PanelLoading /> : data.cantidadLicitacionesMensual?.length ? <CantidadLicitacionesMensualChart data={data.cantidadLicitacionesMensual} /> : <PanelEmpty />}
         </Panel>
-        <Panel title="Rentabilidad mensual" subtitle="Monto cotizado vs. monto ganado por mes" className="panel--wide">
+        <Panel
+          title="Rentabilidad mensual"
+          subtitle="Monto cotizado vs. monto ganado por mes"
+          className="panel--wide"
+          filtros={data.motivosDisponibles}
+          onFiltrosChange={handleFiltroRentabilidadMensual}
+        >
           {loading ? <PanelLoading /> : data.rentabilidadMensual?.length ? <RentabilidadMensualChart data={data.rentabilidadMensual} /> : <PanelEmpty />}
         </Panel>
       </section>
@@ -99,7 +136,7 @@ export default function Dashboard({ onNavigate }) {
         <Panel title="Motivo de adjudicación" subtitle="Por qué se ganaron las compulsas">
           {loading ? <PanelLoading /> : data.motivoGanada?.length ? <MotivoGanadaChart data={data.motivoGanada} /> : <PanelEmpty />}
         </Panel>
-        <Panel title="Winrate por riesgo" subtitle="Proporción de éxito para cada renglón" className="panel--wide">
+        <Panel title="Porcentaje de ganadas por riesgo" subtitle="Proporción de éxito para cada renglón" className="panel--wide">
           {loading ? <PanelLoading /> : data.rentabilidadPorRiesgo?.length ? <RentabilidadPorRiesgoChart data={data.rentabilidadPorRiesgo} /> : <PanelEmpty />}
         </Panel>
       </section>
@@ -122,8 +159,13 @@ export default function Dashboard({ onNavigate }) {
         <Panel title="Renglones más desistidos" subtitle="Cantidad de compulsas desistidas por tipo de riesgo">
           {loading ? <PanelLoading /> : data.renglonesDesistidos?.length ? <RenglonesDesistidosChart data={data.renglonesDesistidos} /> : <PanelEmpty />}
         </Panel>
-        <Panel title="Motivos de desistimiento" subtitle="Causas por las que se descartaron compulsas">
-          {loading ? <PanelLoading /> : data.topMotivosDesistidas?.length ? <MotivosDesistidasList data={data.topMotivosDesistidas} /> : <PanelEmpty />}
+        <Panel
+          title="Motivos de desistimiento"
+          subtitle="Causas por las que se descartaron compulsas"
+          filtros={opcionesMotivosDesistidas}
+          onFiltrosChange={setMotivosDesistidasFiltro}
+        >
+          {loading ? <PanelLoading /> : topMotivosDesistidasFiltrado?.length ? <MotivosDesistidasList data={topMotivosDesistidasFiltrado} /> : <PanelEmpty />}
         </Panel>
       </section>
 

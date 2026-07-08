@@ -17,7 +17,11 @@ export const EstadisticasAPI = {
   topClientesTasaExito: () => get('/top-clientes-tasa-exito'),
   estadoLicitaciones: () => get('/estado-licitaciones'),
   rentabilidadGlobal: () => get('/rentabilidad-global'),
-  rentabilidadMensual: () => get('/rentabilidad-mensual'),
+  rentabilidadMensual: (motivos) => {
+    if (!motivos || motivos.length === 0) return get('/rentabilidad-mensual')
+    const params = motivos.map((m) => `motivos=${encodeURIComponent(m)}`).join('&')
+    return get(`/rentabilidad-mensual?${params}`)
+  },
   totalAdjudicadoGanadas: () => get('/total-adjudicado-ganadas'),
   sobreprecioPromedio: () => get('/sobreprecio-promedio'),
   fugasCompetidor: () => get('/fugas-competidor'),
@@ -30,6 +34,12 @@ export const EstadisticasAPI = {
   topMotivosDesistidas: () => get('/top-motivos-desistidas'),
   montoAdjudicadoDesistido: () => get('/monto-adjudicado-desistido'),
   renglonesDesistidos: () => get('/renglones-desistidos'),
+  motivosDisponibles: () => get('/motivos-disponibles'),
+  cantidadLicitacionesMensual: (motivos) => {
+    if (!motivos || motivos.length === 0) return get('/cantidad-licitaciones-mensual')
+    const params = motivos.map((m) => `motivos=${encodeURIComponent(m)}`).join('&')
+    return get(`/cantidad-licitaciones-mensual?${params}`)
+  },
   rentabilidadPorRiesgo: () => get('/rentabilidad-riesgo'),
 }
 

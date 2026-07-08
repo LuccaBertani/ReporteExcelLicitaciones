@@ -6,7 +6,6 @@ const initialState = {
   winrateGlobal: null,
   evolucionMensual: null,
   topRiesgos: null,
-  topClientesTasaExito: null,
   estadoLicitaciones: null,
   rentabilidadGlobal: null,
   rentabilidadMensual: null,
@@ -24,6 +23,8 @@ const initialState = {
   montoAdjudicadoDesistido: null,
   renglonesDesistidos: null,
   rentabilidadPorRiesgo: null,
+  motivosDisponibles: null,
+  cantidadLicitacionesMensual: null,
 }
 
 export function useEstadisticas() {
@@ -41,7 +42,6 @@ export function useEstadisticas() {
           winrateGlobal,
           evolucionMensual,
           topRiesgos,
-          topClientesTasaExito,
           estadoLicitaciones,
           rentabilidadGlobal,
           rentabilidadMensual,
@@ -58,12 +58,13 @@ export function useEstadisticas() {
           montoAdjudicadoDesistido,
           renglonesDesistidos,
           rentabilidadPorRiesgo,
+          motivosDisponibles,
+          cantidadLicitacionesMensual,
         ] = await Promise.all([
           EstadisticasAPI.totalLicitaciones(),
           EstadisticasAPI.winrateGlobal(),
           EstadisticasAPI.evolucionMensual(),
           EstadisticasAPI.topRiesgos(),
-          EstadisticasAPI.topClientesTasaExito(),
           EstadisticasAPI.estadoLicitaciones(),
           EstadisticasAPI.rentabilidadGlobal(),
           EstadisticasAPI.rentabilidadMensual(),
@@ -80,6 +81,8 @@ export function useEstadisticas() {
           EstadisticasAPI.montoAdjudicadoDesistido(),
           EstadisticasAPI.renglonesDesistidos(),
           EstadisticasAPI.rentabilidadPorRiesgo(),
+          EstadisticasAPI.motivosDisponibles(),
+          EstadisticasAPI.cantidadLicitacionesMensual(),
         ])
 
         if (!cancelado) {
@@ -88,7 +91,6 @@ export function useEstadisticas() {
             winrateGlobal,
             evolucionMensual,
             topRiesgos,
-            topClientesTasaExito,
             estadoLicitaciones,
             rentabilidadGlobal,
             rentabilidadMensual,
@@ -105,6 +107,8 @@ export function useEstadisticas() {
             montoAdjudicadoDesistido,
             renglonesDesistidos,
             rentabilidadPorRiesgo,
+            motivosDisponibles,
+            cantidadLicitacionesMensual,
           })
         }
       } catch (err) {
@@ -120,5 +124,26 @@ export function useEstadisticas() {
     }
   }, [])
 
-  return { data, loading, error }
+  // Permite refrescar solo la rentabilidad mensual, filtrada por uno o varios motivos.
+  // Si no se pasan motivos (o el array está vacío), vuelve a traer el total sin filtrar.
+  async function refetchRentabilidadMensual(motivos) {
+    try {
+      const rentabilidadMensual = await EstadisticasAPI.rentabilidadMensual(motivos)
+      setData((prev) => ({ ...prev, rentabilidadMensual }))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  // Igual que la anterior, pero para la cantidad de licitaciones por mes.
+  async function refetchCantidadLicitacionesMensual(motivos) {
+    try {
+      const cantidadLicitacionesMensual = await EstadisticasAPI.cantidadLicitacionesMensual(motivos)
+      setData((prev) => ({ ...prev, cantidadLicitacionesMensual }))
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  return { data, loading, error, refetchRentabilidadMensual, refetchCantidadLicitacionesMensual }
 }
