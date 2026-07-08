@@ -1,21 +1,41 @@
 package raiz.config;
 
-import lombok.Getter;
 import io.jsonwebtoken.*;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
+
+import javax.crypto.SecretKey;
 import java.util.Date;
 
 public class JwtUtil {
+
     @Getter
-    private static final javax.crypto.SecretKey key = Jwts.SIG.HS256.key().build();
+    private static final SecretKey key = resolveKey();
+
     private static final long ACCESS_TOKEN_VALIDITY = 8 * 60 * 60 * 1000; // 8 horas
     private static final long REFRESH_TOKEN_VALIDITY = 7 * 24 * 60 * 60 * 1000; // 7 días
 
+    // Lee la clave desde la variable de entorno JWT_SECRET (Base64, 256 bits para HS256).
+    // Si no está definida (por ej. corriendo desde el IDE sin configurar el .env),
+    // genera una al azar SOLO como fallback de desarrollo: avisa por consola porque
+    // en ese caso las sesiones no sobreviven a un reinicio.
+    private static SecretKey resolveKey() {
+        String secret = System.getenv("JWT_SECRET");
+        if (secret == null || secret.isBlank()) {
+            System.out.println("[AVISO] JWT_SECRET no está definida: se genera una clave temporal en memoria. " +
+                    "Las sesiones no van a sobrevivir a un reinicio del backend. Definila en tu .env para un entorno estable.");
+            return Jwts.SIG.HS256.key().build();
+        }
+        return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+    }
+
     public static String generarAccessToken(String email) {
         return Jwts.builder()
-                .subject(email)                                    // setSubject() -> subject()
-                .issuer("analisis-licitaciones")                  // setIssuer() -> issuer()
-                .expiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY)) // setExpiration() -> expiration()
-                .signWith(key)                                     // Se mantiene igual (usa la SecretKey moderna)
+                .subject(email)
+                .issuer("analisis-licitaciones")
+                .expiration(new Date(System.currentTimeMillis() + ACCESS_TOKEN_VALIDITY))
+                .signWith(key)
                 .compact();
     }
 
@@ -24,16 +44,16 @@ public class JwtUtil {
                 .subject(email)
                 .issuer("analisis-licitaciones")
                 .expiration(new Date(System.currentTimeMillis() + REFRESH_TOKEN_VALIDITY))
-                .claim("type", "refresh")                          // Se mantiene igual para claims personalizados
+                .claim("type", "refresh")
                 .signWith(key)
                 .compact();
     }
 
     public static Claims parseClaims(String token) {
         return Jwts.parser()
-                .verifyWith(key) // Cambió setSigningKey() por verifyWith()
+                .verifyWith(key)
                 .build()
-                .parseSignedClaims(token) // Cambió parseClaimsJws() por parseSignedClaims()
-                .getPayload(); // Cambió getBody() por getPayload()
+                .parseSignedClaims(token)
+                .getPayload();
     }
 }

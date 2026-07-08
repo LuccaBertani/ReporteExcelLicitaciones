@@ -1,6 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './auth/AuthContext'
-import ProtectedRoute from './auth/ProtectedRoute'
+import ProtectedRoute, { UnauthorizedRoute, CatchAllRedirect } from './auth/ProtectedRoute'
 import LoginPage from './LoginPage'
 import UnauthorizedPage from './UnauthorizedPage'
 import HomePage from './HomePage'
@@ -12,13 +12,13 @@ export default function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/401" element={<UnauthorizedPage />} />
+        <Route path="/401" element={<UnauthorizedRoute><UnauthorizedPage /></UnauthorizedRoute>} />
 
         <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         <Route path="/upload" element={<ProtectedRoute><UploadPage /></ProtectedRoute>} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<CatchAllRedirect />} />
       </Routes>
     </AuthProvider>
   )
