@@ -430,28 +430,39 @@ public class InsertorDatos {
 
                 Date fechaRiesgo = lectorCeldas.leerFecha(row, indicesLicitacion.getIndexFecha());
 
-                // Cada fila del Excel genera su propio LicitacionRiesgo
-                LicitacionRiesgo licitacionRiesgo = new LicitacionRiesgo();
-
-                licitacionRiesgo.setRiesgo(riesgo);
-                licitacionRiesgo.setStatus(status);
-                licitacionRiesgo.setAdjudicada(adjudicada);
-                licitacionRiesgo.setFecha(fechaRiesgo);
-                licitacionRiesgo.setMes(mes);
-                licitacionRiesgo.setMoneda(moneda);
-                licitacionRiesgo.setLicitacion(licitacion);
-
+                // El motivo forma parte de la clave de duplicado, así que se lee antes de buscar/crear el renglón
                 Integer indexMotivo = indicesLicitacion.getIndexMotivo();
 
                 Cell motivoCelda = (indexMotivo != null) ? row.getCell(indexMotivo) : null;
 
+                String motivo_str = null;
+
                 if (motivoCelda == null || motivoCelda.getCellType() == CellType.BLANK) {
                     System.out.println("El motivo de la compulsa está vacío.");
                 } else {
-                    String motivo_str = LimpiadorTexto.capitalizar(lectorCeldas.leerCeldaRecortada(row, indexMotivo));
+                    motivo_str = LimpiadorTexto.capitalizar(lectorCeldas.leerCeldaRecortada(row, indexMotivo));
                     System.out.println("Motivo: " + motivo_str);
-                    licitacionRiesgo.setMotivo(motivo_str);
                 }
+
+                // Clave de duplicado del renglón: numeroCompulsa (ya fijado por 'licitacion') + riesgo + fecha + status + motivo.
+                // Si ya existe un renglón con esa clave se actualiza en vez de insertar uno nuevo, evitando duplicados al recargar el mismo Excel.
+                LicitacionRiesgo licitacionRiesgo = this.buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status, motivo_str);
+                boolean esRenglonNuevo = (licitacionRiesgo == null);
+
+                if (esRenglonNuevo) {
+                    licitacionRiesgo = new LicitacionRiesgo();
+                    licitacionRiesgo.setRiesgo(riesgo);
+                    licitacionRiesgo.setFecha(fechaRiesgo);
+                    licitacionRiesgo.setLicitacion(licitacion);
+                } else {
+                    System.out.println("#### Renglón ya cargado (mismo riesgo+fecha+status+motivo) — se actualiza en vez de duplicar.");
+                }
+
+                licitacionRiesgo.setStatus(status);
+                licitacionRiesgo.setAdjudicada(adjudicada);
+                licitacionRiesgo.setMes(mes);
+                licitacionRiesgo.setMoneda(moneda);
+                licitacionRiesgo.setMotivo(motivo_str);
 
                 Integer indexEstadoMotivo = indicesLicitacion.getIndexEstadoMotivo();
 
@@ -533,7 +544,9 @@ public class InsertorDatos {
                     }
                 }
 
-                licitacion.getRiesgosAsignados().add(licitacionRiesgo);
+                if (esRenglonNuevo) {
+                    licitacion.getRiesgosAsignados().add(licitacionRiesgo);
+                }
 
                 indiceRiesgo++;
             }
