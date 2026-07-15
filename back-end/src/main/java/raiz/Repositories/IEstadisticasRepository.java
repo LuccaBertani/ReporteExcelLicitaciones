@@ -40,26 +40,31 @@ import java.util.List;
 @Repository
 public interface IEstadisticasRepository extends org.springframework.data.repository.Repository<Licitacion, Long>{
 
-    @Query(value = "SELECT COUNT(DISTINCT l.numero_compulsa) AS cant_licitaciones \n" +
+    // COUNT(DISTINCT l.id) y no COUNT(DISTINCT l.numero_compulsa): el numeroCompulsa se
+    // repite entre años (es la razón por la que existe la columna anio), así que contar
+    // por numeroCompulsa solo subcuenta licitaciones cuando el mismo número aparece en más
+    // de un año. l.id ya es único por combinación numeroCompulsa+anio.
+    @Query(value = "SELECT COUNT(DISTINCT l.id) AS cant_licitaciones \n" +
             "FROM licitacion AS l\n" +
             "INNER JOIN licitacion_riesgo AS l_r ON l_r.id_licitacion = l.id\n" +
             "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
             "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
     ITotalLicitacionesUnicas getCantLicitaciones(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
+    // Winrate = Ganadas / TODOS los renglones (incluidas las Desistidas) en el rango de fechas.
+    // Se compara por status.detalle en vez de un id_status hardcodeado: los ids de Status se
+    // generan dinámicamente según el orden de aparición en cada Excel importado, así que un id
+    // fijo puede dejar de corresponder a "Ganada"/"Desistida" en cualquier momento.
     @Query(value = "SELECT \n" +
             "    FORMAT(\n" +
-            "        (COUNT(*) / (SELECT COUNT(*) FROM licitacion_riesgo \n" +
-            "            WHERE id_status <> 2\n" +
-            "              AND (:fechaDesde IS NULL OR fecha >= :fechaDesde)\n" +
-            "              AND (:fechaHasta IS NULL OR fecha <= :fechaHasta))) * 100, \n" +
-            "        2, \n" +
+            "        (SUM(CASE WHEN s.detalle = 'Ganada' THEN 1 ELSE 0 END) * 100.0) / NULLIF(COUNT(*), 0),\n" +
+            "        2,\n" +
             "        'de_DE'\n" +
-            "    ) AS winrate \n" +
-            "FROM licitacion_riesgo \n" +
-            "WHERE id_status = 3\n" +
-            "  AND (:fechaDesde IS NULL OR fecha >= :fechaDesde)\n" +
-            "  AND (:fechaHasta IS NULL OR fecha <= :fechaHasta)", nativeQuery = true)
+            "    ) AS winrate\n" +
+            "FROM licitacion_riesgo AS l_r\n" +
+            "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
     IWinrateGlobal getWinrateGlobal(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     @Query(value = "SELECT \n" +
@@ -72,7 +77,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        YEAR(l_r.fecha) AS anio,\n" +
             "        MONTH(l_r.fecha) AS mes_num,\n" +
             "        m.detalle AS mes_nombre,\n" +
-            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad_licitaciones,\n" +
+            "        COUNT(DISTINCT l.id) AS cantidad_licitaciones,\n" +
             "        SUM(l_r.monto_cotizado) AS total_cotizado,\n" +
             "        SUM(CASE WHEN s.detalle <> 'Desistida' THEN l_r.monto_adjudicado ELSE 0 END) AS total_adjudicado\n" +
             "    FROM licitacion_riesgo AS l_r \n" +
@@ -258,7 +263,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     @Query(value = "SELECT r.detalle AS riesgo, FORMAT(SUM(l_r.monto_cotizado), 2, 'de_DE') AS monto_cotizado, FORMAT(SUM(l_r.monto_adjudicado), 2, 'de_DE') AS monto_adjudicado \n" +
             "FROM licitacion_riesgo l_r \n" +
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
-            "WHERE l_r.id_status <> 2\n" +
+            "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
+            "WHERE s.detalle <> 'Desistida'\n" +
             "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
             "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY r.detalle\n" +
@@ -282,9 +288,9 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        SELECT \n" +
             "            YEAR(l_r.fecha) AS anio, MONTH(l_r.fecha) AS mes_num, m.detalle AS mes_nombre,\n" +
             "            SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "            SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "            SUM(CASE WHEN s.detalle = 'Ganada' THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
             "            COUNT(*) AS licitaciones_totales,\n" +
-            "            SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
+            "            SUM(CASE WHEN s.detalle = 'Ganada' THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "        FROM licitacion_riesgo AS l_r\n" +
             "        LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "        INNER JOIN status AS s ON s.id = l_r.id_status\n" +
@@ -314,9 +320,9 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        SELECT \n" +
             "            YEAR(l_r.fecha) AS anio, MONTH(l_r.fecha) AS mes_num, m.detalle AS mes_nombre,\n" +
             "            SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "            SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "            SUM(CASE WHEN s.detalle = 'Ganada' THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
             "            COUNT(*) AS licitaciones_totales,\n" +
-            "            SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
+            "            SUM(CASE WHEN s.detalle = 'Ganada' THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "        FROM licitacion_riesgo AS l_r\n" +
             "        LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "        INNER JOIN status AS s ON s.id = l_r.id_status\n" +
@@ -335,8 +341,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
     // ============================================================================
     @Query(value = "SELECT \n" +
             "    SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "    SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
-            "    FORMAT((SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) * 100.0) / NULLIF(SUM(l_r.monto_cotizado), 0), 2, 'de_DE') AS porcentaje_beneficio\n" +
+            "    SUM(CASE WHEN s.detalle = 'Ganada' THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "    FORMAT((SUM(CASE WHEN s.detalle = 'Ganada' THEN l_r.monto_adjudicado ELSE 0 END) * 100.0) / NULLIF(SUM(l_r.monto_cotizado), 0), 2, 'de_DE') AS porcentaje_beneficio\n" +
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE s.detalle <> 'Desistida'\n" +
@@ -361,9 +367,9 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        l_r.id_riesgo, \n" +
             "        COALESCE(r.detalle, 'Sin Riesgo Asignado') AS riesgo,\n" +
             "        SUM(l_r.monto_cotizado) AS cant_cotizada,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
+            "        SUM(CASE WHEN s.detalle = 'Ganada' THEN l_r.monto_adjudicado ELSE 0 END) AS cant_ganada,\n" +
             "        COUNT(l_r.id) AS licitaciones_totales,\n" +
-            "        SUM(CASE WHEN l_r.id_status = 3 THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
+            "        SUM(CASE WHEN s.detalle = 'Ganada' THEN 1 ELSE 0 END) AS licitaciones_ganadas\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "    INNER JOIN status AS s ON s.id = l_r.id_status\n" +
@@ -540,7 +546,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "        YEAR(l_r.fecha) AS anio,\n" +
             "        MONTH(l_r.fecha) AS mes_num,\n" +
             "        m.detalle AS mes_nombre,\n" +
-            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad_licitaciones\n" +
+            "        COUNT(DISTINCT l.id) AS cantidad_licitaciones\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN mes AS m ON m.id = l_r.id_mes\n" +
             "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
@@ -569,7 +575,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "    SELECT \n" +
             "        YEAR(l_r.fecha) AS anio,\n" +
             "        MONTH(l_r.fecha) AS mes_num,\n" +
-            "        COUNT(DISTINCT l.numero_compulsa) AS cantidad\n" +
+            "        COUNT(DISTINCT l.id) AS cantidad\n" +
             "    FROM licitacion_riesgo AS l_r\n" +
             "    LEFT JOIN licitacion AS l ON l.id = l_r.id_licitacion\n" +
             "    WHERE l_r.fecha IS NOT NULL\n" +

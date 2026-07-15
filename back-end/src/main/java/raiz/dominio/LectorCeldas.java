@@ -8,6 +8,7 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
@@ -101,7 +102,9 @@ public class LectorCeldas {
         }
 
         try {
-            return new java.sql.Date(cell.getDateCellValue().getTime());
+            // POI moderno permite obtener directamente LocalDate libre de zonas horarias
+            LocalDateTime ldt = cell.getLocalDateTimeCellValue();
+            return java.sql.Date.valueOf(ldt.toLocalDate());
         } catch (IllegalStateException e) {
             // Defensa adicional: si por algún motivo el tipo reportado no
             // coincide con lo que POI puede convertir a fecha, intentamos

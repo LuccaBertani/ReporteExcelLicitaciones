@@ -76,4 +76,18 @@ export const ExcelAPI = {
     if (!res.ok) throw new Error(data.mensaje || `Error ${res.status}`)
     return data
   },
+  // Audita el Excel contra lo que ya está en la base de datos (no inserta ni
+  // modifica nada). Devuelve { exitosa, renglonesOk, renglonesFaltantes,
+  // renglonesMalMonto, renglonesMalCotizado, incidencias: string[] }.
+  verificar: async (archivo) => {
+    const formData = new FormData()
+    formData.append('archivo', archivo)
+    const res = await authFetch(`${EXCEL_URL}/verificar`, {
+      method: 'POST',
+      body: formData,
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.mensaje || `Error ${res.status}`)
+    return data
+  },
 }

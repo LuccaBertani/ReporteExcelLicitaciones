@@ -109,7 +109,10 @@ export default function Dashboard() {
         </h1>
         <p className="hero__description">
           Estado en vivo de la cartera: cuánto se cotiza, cuánto se gana y dónde está la
-          rentabilidad, riesgo por riesgo, mes a mes.
+          rentabilidad, riesgo por riesgo, mes a mes. Todas las métricas de resultado
+          (tasa de ganadas, desistidas, distribución) se miden por renglón riesgo × compulsa,
+          no por compulsa única: una misma licitación puede tener varios riesgos cotizados,
+          cada uno con su propio resultado.
         </p>
 
         <div className="hero__filtro-fecha">
@@ -149,12 +152,12 @@ export default function Dashboard() {
 
       <SectionTitle>Indicadores Clave</SectionTitle>
       <section className="kpi-grid kpi-grid--7">
-        <KpiCard label="Licitaciones totales"   value={totalLicitaciones} format={formatoEntero}      accent="neutral" />
-        <KpiCard label="Tasa de ganadas global"  value={winrate}          format={formatoPorcentaje}   accent="green"   />
+        <KpiCard label="Licitaciones totales"   value={totalLicitaciones} format={formatoEntero}      accent="neutral" sublabel="compulsas únicas" />
+        <KpiCard label="Tasa de ganadas global"  value={winrate}          format={formatoPorcentaje}   accent="green"   sublabel="por riesgo × compulsa" />
         <KpiCard label="Adjudicado en ganadas"   value={totalAdjudicado}  format={formatoMonedaCorta}  accent="blue"    />
-        <KpiCard label="Beneficio sobre cotizado" value={beneficio}       format={formatoPorcentaje}   accent="green"   />
+        <KpiCard label="Beneficio sobre cotizado" value={beneficio}       format={formatoPorcentaje}   accent="green"   sublabel="por riesgo × compulsa" />
         <KpiCard label="Sobreprecio promedio"    value={sobreprecio}      format={formatoPorcentaje}   accent="amber"   />
-        <KpiCard label="Compulsas desistidas"    value={totalDesistidas}  format={formatoEntero}       accent="amber"   />
+        <KpiCard label="Compulsas desistidas"    value={totalDesistidas}  format={formatoEntero}       accent="amber"   sublabel="renglones (riesgo × compulsa)" />
         <KpiCard label="Masa desistida teórica"  value={montoDesistido}   format={formatoMonedaCorta}  accent="neutral" />
       </section>
 
@@ -163,7 +166,7 @@ export default function Dashboard() {
         <Panel title="Evolución mensual" subtitle="Cantidad de licitaciones, cotizado y adjudicado por mes" className="panel--wide">
           {loading ? <PanelLoading /> : data.evolucionMensual?.length ? <EvolucionMensualChart data={data.evolucionMensual} /> : <PanelEmpty />}
         </Panel>
-        <Panel title="Estado de licitaciones" subtitle="Distribución por resultado">
+        <Panel title="Estado de licitaciones" subtitle="Distribución por resultado (renglón riesgo × compulsa)">
           {loading ? <PanelLoading /> : data.estadoLicitaciones?.length ? <EstadoLicitacionesChart data={data.estadoLicitaciones} /> : <PanelEmpty />}
         </Panel>
         <Panel title="Top riesgos por monto adjudicado" subtitle="Los 8 riesgos con mayor volumen">

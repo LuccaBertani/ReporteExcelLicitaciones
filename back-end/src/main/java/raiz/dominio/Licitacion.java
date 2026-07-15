@@ -28,6 +28,9 @@ public class Licitacion {
     @Column(name = "numeroCompulsa")
     private String numeroCompulsa;
 
+    @Column(name = "anio")
+    private String anio;
+
     public Licitacion() {
         this.riesgosAsignados = new ArrayList<>();
     }

@@ -18,6 +18,11 @@ public interface ILicitacion extends JpaRepository<Licitacion,Long> {
     Optional<Licitacion> findByNumeroCompulsa(String numeroCompulsa);
 
     List<Licitacion> findAllByNumeroCompulsa(String numExcel);
+
+    @Query("""
+            SELECT l FROM Licitacion l where l.numeroCompulsa = :numero_str AND l.anio = :anio
+            """)
+    Optional<Licitacion> findByNumeroCompulsaAndAnio(@Param("numero_str") String numeroStr, @Param("anio") String anio);
 /*
     @Query("SELECT COUNT(l) > 0 FROM Licitacion l WHERE " +
             "l.numeroCompulsa = :numero AND " +

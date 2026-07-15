@@ -37,8 +37,9 @@ export default function UploadPage() {
   const navigate = useNavigate()
   const [archivo, setArchivo] = useState(null)
   const [dragging, setDragging] = useState(false)
-  const [estado, setEstado] = useState(null) // null | 'cargando' | 'ok' | 'error'
+  const [estado, setEstado] = useState(null) // null | 'cargando' | 'ok' | 'parcial' | 'error'
   const [mensaje, setMensaje] = useState('')
+  const [erroresImportacion, setErroresImportacion] = useState([])
   const inputRef = useRef(null)
 
   const seleccionarArchivo = (file) => {
@@ -69,10 +70,12 @@ export default function UploadPage() {
     if (!archivo) return
     setEstado('cargando')
     setMensaje('')
+    setErroresImportacion([])
     try {
       const res = await ExcelAPI.importar(archivo)
-      setEstado('ok')
+      setEstado(res.status === 'parcial' ? 'parcial' : 'ok')
       setMensaje(res.mensaje || 'Importación completada.')
+      setErroresImportacion(res.errores || [])
     } catch (err) {
       setEstado('error')
       setMensaje(err.message || 'Error inesperado al importar.')
@@ -83,7 +86,68 @@ export default function UploadPage() {
     setArchivo(null)
     setEstado(null)
     setMensaje('')
+    setErroresImportacion([])
     if (inputRef.current) inputRef.current.value = ''
+  }
+
+  // ── Verificar carga (auditoría de solo lectura, no inserta nada) ──
+  const [archivoVerificar, setArchivoVerificar] = useState(null)
+  const [draggingVerificar, setDraggingVerificar] = useState(false)
+  const [estadoVerificar, setEstadoVerificar] = useState(null) // null | 'cargando' | 'ok' | 'error'
+  const [mensajeVerificar, setMensajeVerificar] = useState('')
+  const [resultadoVerificar, setResultadoVerificar] = useState(null)
+  const inputRefVerificar = useRef(null)
+
+  const seleccionarArchivoVerificar = (file) => {
+    if (!file) return
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      setEstadoVerificar('error')
+      setMensajeVerificar('El archivo debe ser .xlsx')
+      return
+    }
+    setArchivoVerificar(file)
+    setEstadoVerificar(null)
+    setMensajeVerificar('')
+    setResultadoVerificar(null)
+  }
+
+  const onDropVerificar = useCallback((e) => {
+    e.preventDefault()
+    setDraggingVerificar(false)
+    const file = e.dataTransfer.files[0]
+    seleccionarArchivoVerificar(file)
+  }, [])
+
+  const onDragOverVerificar = (e) => { e.preventDefault(); setDraggingVerificar(true) }
+  const onDragLeaveVerificar = () => setDraggingVerificar(false)
+  const onFileChangeVerificar = (e) => seleccionarArchivoVerificar(e.target.files[0])
+
+  const verificar = async () => {
+    if (!archivoVerificar) return
+    setEstadoVerificar('cargando')
+    setMensajeVerificar('')
+    setResultadoVerificar(null)
+    try {
+      const res = await ExcelAPI.verificar(archivoVerificar)
+      setResultadoVerificar(res)
+      setEstadoVerificar(res.exitosa ? 'ok' : 'error')
+      setMensajeVerificar(
+        res.exitosa
+          ? 'Verificación correcta: todos los renglones coinciden.'
+          : `Se encontraron incidencias (ver detalle abajo).`
+      )
+    } catch (err) {
+      setEstadoVerificar('error')
+      setMensajeVerificar(err.message || 'Error inesperado al verificar.')
+    }
+  }
+
+  const limpiarVerificar = () => {
+    setArchivoVerificar(null)
+    setEstadoVerificar(null)
+    setMensajeVerificar('')
+    setResultadoVerificar(null)
+    if (inputRefVerificar.current) inputRefVerificar.current.value = ''
   }
 
   return (
@@ -166,9 +230,22 @@ export default function UploadPage() {
               <span>✓</span> {mensaje}
             </div>
           )}
+          {estado === 'parcial' && (
+            <div className="upload-feedback upload-feedback--error">
+              <span>⚠</span> {mensaje}
+            </div>
+          )}
           {estado === 'error' && (
             <div className="upload-feedback upload-feedback--error">
               <span>✕</span> {mensaje}
+            </div>
+          )}
+
+          {erroresImportacion.length > 0 && (
+            <div className="verify-incidencias">
+              {erroresImportacion.map((linea, i) => (
+                <div key={i} className="verify-incidencias__row">{linea}</div>
+              ))}
             </div>
           )}
 
@@ -214,6 +291,135 @@ export default function UploadPage() {
                 <span key={r} className="riesgo-chip">{r}</span>
               ))}
             </div>
+          </div>
+        </aside>
+      </div>
+
+      {/* ── Verificar carga ── */}
+      <div className="upload-layout" style={{ marginTop: 24 }}>
+        <section className="upload-card upload-card--main">
+          <h2 className="upload-card__title">Verificar carga</h2>
+          <p className="upload-card__subtitle">
+            Subí un Excel para auditarlo contra lo que ya está en la base de datos:
+            reporta licitaciones o renglones faltantes y montos que no coinciden.
+            No inserta ni modifica nada.
+          </p>
+
+          {/* Dropzone */}
+          <div
+            className={`dropzone ${draggingVerificar ? 'dropzone--over' : ''} ${archivoVerificar ? 'dropzone--selected' : ''}`}
+            onDrop={onDropVerificar}
+            onDragOver={onDragOverVerificar}
+            onDragLeave={onDragLeaveVerificar}
+            onClick={() => !archivoVerificar && inputRefVerificar.current?.click()}
+          >
+            <input
+              ref={inputRefVerificar}
+              type="file"
+              accept=".xlsx"
+              style={{ display: 'none' }}
+              onChange={onFileChangeVerificar}
+            />
+
+            {archivoVerificar ? (
+              <div className="dropzone__file">
+                <span className="dropzone__file-icon">📄</span>
+                <div className="dropzone__file-info">
+                  <span className="dropzone__file-name">{archivoVerificar.name}</span>
+                  <span className="dropzone__file-size">
+                    {(archivoVerificar.size / 1024).toFixed(1)} KB
+                  </span>
+                </div>
+                <button
+                  className="dropzone__remove"
+                  onClick={(e) => { e.stopPropagation(); limpiarVerificar() }}
+                  title="Quitar archivo"
+                >
+                  ✕
+                </button>
+              </div>
+            ) : (
+              <div className="dropzone__placeholder">
+                <span className="dropzone__icon">🔎</span>
+                <p className="dropzone__text">
+                  Arrastrá el archivo acá o <span className="dropzone__link">hacé click para elegirlo</span>
+                </p>
+                <p className="dropzone__hint">Solo archivos .xlsx · Máx. 50 MB</p>
+              </div>
+            )}
+          </div>
+
+          {/* Botón de verificar */}
+          <button
+            className={`import-btn ${!archivoVerificar || estadoVerificar === 'cargando' ? 'import-btn--disabled' : ''}`}
+            onClick={verificar}
+            disabled={!archivoVerificar || estadoVerificar === 'cargando'}
+          >
+            {estadoVerificar === 'cargando' ? (
+              <><span className="import-btn__spinner" /> Verificando…</>
+            ) : (
+              'Verificar carga'
+            )}
+          </button>
+
+          {/* Feedback */}
+          {estadoVerificar === 'ok' && (
+            <div className="upload-feedback upload-feedback--ok">
+              <span>✓</span> {mensajeVerificar}
+            </div>
+          )}
+          {estadoVerificar === 'error' && (
+            <div className="upload-feedback upload-feedback--error">
+              <span>✕</span> {mensajeVerificar}
+            </div>
+          )}
+
+          {/* Resultados */}
+          {resultadoVerificar && (
+            <div className="verify-results">
+              <div className="verify-stats">
+                <div className="verify-stat verify-stat--ok">
+                  <span className="verify-stat__value">{resultadoVerificar.renglonesOk}</span>
+                  <span className="verify-stat__label">OK</span>
+                </div>
+                <div className="verify-stat verify-stat--error">
+                  <span className="verify-stat__value">{resultadoVerificar.renglonesFaltantes}</span>
+                  <span className="verify-stat__label">Faltantes</span>
+                </div>
+                <div className="verify-stat verify-stat--warn">
+                  <span className="verify-stat__value">{resultadoVerificar.renglonesMalMonto}</span>
+                  <span className="verify-stat__label">Monto mal</span>
+                </div>
+                <div className="verify-stat verify-stat--warn">
+                  <span className="verify-stat__value">{resultadoVerificar.renglonesMalCotizado}</span>
+                  <span className="verify-stat__label">Cotizado mal</span>
+                </div>
+              </div>
+
+              {resultadoVerificar.incidencias?.length > 0 && (
+                <div className="verify-incidencias">
+                  {resultadoVerificar.incidencias.map((linea, i) => (
+                    <div key={i} className="verify-incidencias__row">{linea}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+
+        <aside className="upload-aside">
+          <div className="upload-card">
+            <h2 className="upload-card__title">¿Qué hace la verificación?</h2>
+            <p className="upload-card__subtitle">
+              Compara, fila por fila, lo que hay en el Excel contra lo ya guardado en
+              la base de datos. No importa datos nuevos, solo audita.
+            </p>
+            <ul style={{ margin: 0, paddingLeft: 18, fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.8 }}>
+              <li>Licitaciones o renglones que están en el Excel pero no en la base.</li>
+              <li>Riesgos de la columna <code>Riesgo</code> que no se reconocen.</li>
+              <li>Montos adjudicados o cotizados que difieren entre el Excel y la base.</li>
+              <li>Clientes que difieren para la misma licitación.</li>
+            </ul>
           </div>
         </aside>
       </div>
