@@ -599,12 +599,18 @@ public class InsertorDatos {
                 List<Integer> indicesRiesgoCosto = indicesLicitacion.getIndicesRiesgoCosto();
 
 // monto cotizado (RiesgoCosto1 -> primer riesgo, RiesgoCosto2 -> segundo riesgo)
+// Igual que con AdjudicadoCosto: si la columna existe pero la celda de esta fila
+// puntual está vacía, se conserva el monto general en vez de pisarlo con null.
                 if(indicesRiesgoCosto != null) {
                     if (indiceRiesgo < indicesRiesgoCosto.size()) {
                         Integer indexCotizadoCosto = indicesRiesgoCosto.get(indiceRiesgo);
 
                         if (indexCotizadoCosto != null) {
-                            montoCotizadoCalculado = lectorCeldas.leerComoDouble(row.getCell(indexCotizadoCosto));
+                            Double montoCotizadoRiesgo = lectorCeldas.leerComoDouble(row.getCell(indexCotizadoCosto));
+
+                            if (montoCotizadoRiesgo != null) {
+                                montoCotizadoCalculado = montoCotizadoRiesgo;
+                            }
                         }
                     }
                 }
