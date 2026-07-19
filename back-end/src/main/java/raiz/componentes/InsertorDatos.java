@@ -157,31 +157,13 @@ public class InsertorDatos {
                     Integer indexMontoAdjudicado = headerGestor.getHeaderIndex("MontoAdjudicado");
                     Integer indexMontoCotizado = headerGestor.getHeaderIndex("MontoCotizado");
 
-                    Integer CotizadoCosto1Header = headerGestor.getHeaderIndex("CotizadoCosto1");
-                    Integer CotizadoCosto2Header = headerGestor.getHeaderIndex("CotizadoCosto2");
-
-                    List<Integer> indicesRiesgoCosto = null;
-
-                    if(CotizadoCosto1Header != null && CotizadoCosto2Header != null) {
-                        indicesRiesgoCosto = List.of(
-                                CotizadoCosto1Header,
-                                CotizadoCosto2Header
-                        );
-                    }
-
-                    Integer AdjudicadoCosto1Header = headerGestor.getHeaderIndex("AdjudicadoCosto1");
-                    Integer AdjudicadoCosto2Header = headerGestor.getHeaderIndex("AdjudicadoCosto2");
-                    Integer AdjudicadoCosto3Header = headerGestor.getHeaderIndex("AdjudicadoCosto3");
-
-                    // Se agregan las 3 posiciones siempre (aunque alguna columna no exista en
-                    // este Excel, en cuyo caso queda null) para que el índice de la lista se
-                    // corresponda 1 a 1 con la posición del riesgo en la fila: posición 0 ->
-                    // AdjudicadoCosto1, 1 -> AdjudicadoCosto2, 2 -> AdjudicadoCosto3. El consumidor
-                    // ya chequea null antes de usar cada valor. Arrays.asList (a diferencia de
-                    // List.of) sí admite elementos null.
-                    List<Integer> indicesAdjudicadoCosto = new ArrayList<>(Arrays.asList(
-                            AdjudicadoCosto1Header, AdjudicadoCosto2Header, AdjudicadoCosto3Header
-                    ));
+                    // Búsqueda dinámica: no hay límite fijo de CotizadoCostoN/AdjudicadoCostoN.
+                    // El tamaño de cada lista es el N más alto que exista en ESTE Excel puntual;
+                    // si un N intermedio falta, esa posición queda null (el consumidor ya
+                    // chequea null antes de usar cada valor), para que el índice de la lista se
+                    // siga correspondiendo 1 a 1 con la posición del riesgo en la fila.
+                    List<Integer> indicesRiesgoCosto = headerGestor.getIndicesPorPrefijoNumerado("CotizadoCosto");
+                    List<Integer> indicesAdjudicadoCosto = headerGestor.getIndicesPorPrefijoNumerado("AdjudicadoCosto");
 
                     IndicesLicitacion indicesLicitacion = new IndicesLicitacion(indexNumeroCompulsa, indexRiesgo, indexFecha, indexMotivo, indexEstadoMotivo, indexMontoAdjudicado, indexMontoCotizado, indicesRiesgoCosto, indicesAdjudicadoCosto);
 
@@ -761,22 +743,12 @@ public class InsertorDatos {
             Integer idxAdjudicado      = hg.getHeaderIndex("adjudicadoA");
             Integer idxMontoAdj        = hg.getHeaderIndex("MontoAdjudicado");
             Integer idxMontoCot        = hg.getHeaderIndex("MontoCotizado");
-            Integer idxAdjCosto1       = hg.getHeaderIndex("AdjudicadoCosto1");
-            Integer idxAdjCosto2       = hg.getHeaderIndex("AdjudicadoCosto2");
-            Integer idxAdjCosto3       = hg.getHeaderIndex("AdjudicadoCosto3");
-            Integer idxCotCosto1       = hg.getHeaderIndex("CotizadoCosto1");
-            Integer idxCotCosto2       = hg.getHeaderIndex("CotizadoCosto2");
 
-            // Igual que en el insertor: 3 posiciones fijas (una por riesgo posible en la
-            // fila), con null donde la columna no exista en este Excel. Antes faltaba
-            // AdjudicadoCosto3 acá, así que el tercer riesgo de una fila (posición 2)
-            // siempre caía al monto general de la fila en vez de a su columna específica,
-            // generando falsos [MONTO DISTINTO].
-            List<Integer> indicesAdjCosto = new ArrayList<>(Arrays.asList(idxAdjCosto1, idxAdjCosto2, idxAdjCosto3));
-
-            List<Integer> indicesCotCosto = new ArrayList<>();
-            if (idxCotCosto1 != null) indicesCotCosto.add(idxCotCosto1);
-            if (idxCotCosto2 != null) indicesCotCosto.add(idxCotCosto2);
+            // Búsqueda dinámica, igual que en el insertor: sin límite fijo de N, y con
+            // null en las posiciones intermedias faltantes para no perder el alineamiento
+            // con el riesgo correspondiente.
+            List<Integer> indicesAdjCosto = hg.getIndicesPorPrefijoNumerado("AdjudicadoCosto");
+            List<Integer> indicesCotCosto = hg.getIndicesPorPrefijoNumerado("CotizadoCosto");
 
             System.out.println("--- INICIANDO AUDITORÍA DE DATOS ---");
 
@@ -870,7 +842,10 @@ public class InsertorDatos {
 
                     Double montoCotEsperado = null;
                     if (!indicesCotCosto.isEmpty() && indiceToken < indicesCotCosto.size()) {
-                        montoCotEsperado = lectorCeldas.leerComoDouble(row.getCell(indicesCotCosto.get(indiceToken)));
+                        Integer indexCotCosto = indicesCotCosto.get(indiceToken);
+                        if (indexCotCosto != null) {
+                            montoCotEsperado = lectorCeldas.leerComoDouble(row.getCell(indexCotCosto));
+                        }
                     }
                     if (montoCotEsperado == null) montoCotEsperado = montoCotExcel;
 

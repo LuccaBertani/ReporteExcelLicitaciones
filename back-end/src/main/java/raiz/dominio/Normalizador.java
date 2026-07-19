@@ -19,8 +19,13 @@ public class Normalizador {
         String sinAcentos = patronAcentos.matcher(textoNormalizado).replaceAll("");
 
         // 3. Eliminar espacios, comas y otros signos de puntuación comunes
-        // [\\s,.:;?¿!¡()-] busca espacios (\s), comas, puntos, dos puntos, etc.
-        String textoLimpio = sinAcentos.replaceAll("[\\s,.:;?¿!¡()\\-_]", "");
+        // [\\s,.:;?¿!¡()-_/'’] busca espacios (\s), comas, puntos, dos puntos, etc.
+        // Se agregan '/' y los dos tipos de apóstrofe (recto ' y tipográfico ’, este
+        // último es el que deja el autocorrector de Word/Excel) para que headers como
+        // "Adjudicado/Costo1" o nombres con apóstrofe normalicen igual que sin ellos.
+        // Se usa el escape unicode ’ en vez del carácter literal para evitar
+        // problemas si el archivo se compila con un encoding distinto a UTF-8.
+        String textoLimpio = sinAcentos.replaceAll("[\\s,.:;?¿!¡()\\-_/'\\u2019]", "");
 
         return textoLimpio.toUpperCase();
     }

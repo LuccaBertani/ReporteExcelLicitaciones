@@ -7,30 +7,46 @@ const HEADERS_ESPERADOS = [
   { col: 'Seccion',          desc: 'Sección o área del organismo' },
   { col: 'Ramo',             desc: 'Ramo de seguro (ej. Patrimonial)' },
   { col: 'Fecha',            desc: 'Fecha de la licitación (dd/mm/aaaa)' },
-  { col: 'Numero',           desc: 'Número de compulsa único' },
+  { col: 'Numero',           desc: 'Número de compulsa (se repite entre años; se identifica de forma única junto con el año de la Fecha)' },
   { col: 'Cliente',          desc: 'Nombre del cliente / organismo' },
-  { col: 'Riesgo',           desc: 'Riesgo o renglón cotizado' },
+  { col: 'Riesgo',           desc: 'Riesgo(s) cotizados en la fila, separados por "/", ";" o ",". Ej: "RC COMPRENSIVA / INCENDIO"' },
   { col: 'Status',           desc: 'Estado: Ganada, Perdida, Desistida…' },
   { col: 'Estado Motivo',    desc: 'Detalle del estado (ej. Por precio)' },
   { col: 'Motivo',           desc: 'Motivo libre de la resolución' },
   { col: 'AdjudicadoA',      desc: 'Empresa adjudicataria' },
-  { col: 'Moneda',           desc: 'Moneda del monto (ej. ARS)' },
-  { col: 'MontoAdjudicado',  desc: 'Monto adjudicado (numérico)' },
-  { col: 'MontoCotizado',    desc: 'Monto cotizado por La Caja (numérico)' },
-  { col: 'CotizadoCosto1',   desc: 'Costo cotizado renglón 1' },
-  { col: 'CotizadoCosto2',   desc: 'Costo cotizado renglón 2' },
-  { col: 'AdjudicadoCosto1', desc: 'Costo adjudicado renglón 1' },
-  { col: 'AdjudicadoCosto2', desc: 'Costo adjudicado renglón 2' },
-  { col: 'AdjudicadoCosto3', desc: 'Costo adjudicado renglón 3' },
+  { col: 'MontoAdjudicado',  desc: 'Monto adjudicado general de la fila (numérico). Se usa como valor por defecto para cada riesgo si no hay una columna AdjudicadoCostoN específica para su posición' },
+  { col: 'MontoCotizado',    desc: 'Monto cotizado general de la fila (numérico). Se usa como valor por defecto para cada riesgo si no hay una columna CotizadoCostoN específica para su posición' },
+  { col: 'CotizadoCostoN',   desc: 'Monto cotizado específico para el riesgo en la posición N de la columna Riesgo (CotizadoCosto1 → primer riesgo, CotizadoCosto2 → segundo riesgo, y así sin límite). No hace falta que existan todas: donde falte alguna, ese riesgo toma el MontoCotizado general' },
+  { col: 'AdjudicadoCostoN', desc: 'Monto adjudicado específico para el riesgo en la posición N de la columna Riesgo (AdjudicadoCosto1 → primer riesgo, AdjudicadoCosto2 → segundo, etc., sin límite). Donde falte alguna, ese riesgo toma el MontoAdjudicado general' },
 ]
 
-const RIESGOS_SOPORTADOS = [
-  'RC COMPRENSIVA', 'RC ASCENSORES', 'RC CALDERAS', 'RC GUARDA/DEPOSITO',
-  'RC CARTELES', 'INCENDIO', 'TECNICO EQ. ELECTRONICOS', 'APC',
-  'ROBO Y RIESGOS SIMILARES', 'VALORES EN TRANSITO', 'VALORES EN CAJA',
-  'TR INSTRUMENTOS MUSICALES', 'TR OBRAS DE ARTE', 'DRONES', 'INTEGRAL',
-  'AERONAVEACION', 'CAUCION', 'TRO', 'TRANSPORTE', 'SEPELIO',
-  'VIDA', 'SALUD', 'FRANQUICIAS',
+// Debe reflejar exactamente los sinónimos definidos en GestorRiesgos.cargarSinonimos()
+// (back-end/src/main/java/raiz/dominio/GestorRiesgos.java). Si se agrega o cambia un
+// sinónimo ahí, hay que actualizarlo acá también.
+const RIESGOS_SINONIMOS = [
+  { oficial: 'RC COMPRENSIVA',            sinonimos: ['RCC', 'RC', 'RC Comprensiva', 'RC Canes'] },
+  { oficial: 'RC ASCENSORES',             sinonimos: ['RC Ascendores', 'RC Ascensores'] },
+  { oficial: 'RC CALDERAS',               sinonimos: ['RC Calderas', 'Calderas'] },
+  { oficial: 'RC GUARDA/DEPOSITO',        sinonimos: ['RC Guarda/Deposito', 'RC Guarda y Deposito', 'Guarda y Deposito'] },
+  { oficial: 'RC CARTELES',               sinonimos: ['RC Carteles', 'Carteles'] },
+  { oficial: 'INCENDIO',                  sinonimos: ['Incendio'] },
+  { oficial: 'TECNICO EQ. ELECTRONICOS',  sinonimos: ['ST EE', 'ST', 'ST TR', 'TR Equipos Electrónicos', 'ST Eq. Electrónicos'] },
+  { oficial: 'APC',                       sinonimos: ['ACCIDENTES PERSONALES', 'APC'] },
+  { oficial: 'ROBO Y RIESGOS SIMILARES',  sinonimos: ['Robo', 'Robo Drones'] },
+  { oficial: 'VALORES EN TRANSITO',       sinonimos: ['ROBO DE VALORES', 'Valores en Transito'] },
+  { oficial: 'VALORES EN CAJA',           sinonimos: ['Valores en Caja', 'Valores en Caja y Cofre'] },
+  { oficial: 'TR INSTRUMENTOS MUSICALES', sinonimos: ['TR Instrumentos Musicales', 'TRIM'] },
+  { oficial: 'TR OBRAS DE ARTE',          sinonimos: ['TR Obras de Arte', 'TROA'] },
+  { oficial: 'DRONES',                    sinonimos: ['RC Drones', 'RC Vant'] },
+  { oficial: 'INTEGRAL',                  sinonimos: ['INTEGRAL', 'ICO'] },
+  { oficial: 'AERONAVEACION',             sinonimos: ['Aeronavegación', 'Aeronavegacion'] },
+  { oficial: 'CAUCION',                   sinonimos: ['Caucion'] },
+  { oficial: 'TRO',                       sinonimos: ['TRO'] },
+  { oficial: 'TRANSPORTE',                sinonimos: ['Transporte'] },
+  { oficial: 'SEPELIO',                   sinonimos: ['Sepelio'] },
+  { oficial: 'VIDA',                      sinonimos: ['Vida'] },
+  { oficial: 'SALUD',                     sinonimos: ['Salud'] },
+  { oficial: 'FRANQUICIAS',               sinonimos: ['Franquicias'] },
 ]
 
 export default function UploadPage() {
@@ -260,7 +276,10 @@ export default function UploadPage() {
         <aside className="upload-aside">
           <div className="upload-card">
             <h2 className="upload-card__title">Columnas esperadas</h2>
-            <p className="upload-card__subtitle">El orden no importa, pero los nombres deben ser exactos (sensible a mayúsculas).</p>
+            <p className="upload-card__subtitle">
+              El orden no importa, y la comparación de nombres no distingue mayúsculas/minúsculas,
+              tildes ni espacios (p. ej. "Cotizado Costo 1" y "COTIZADOCOSTO1" matchean igual).
+            </p>
             <div className="headers-table-wrapper">
               <table className="headers-table">
                 <thead>
@@ -284,12 +303,27 @@ export default function UploadPage() {
           <div className="upload-card">
             <h2 className="upload-card__title">Riesgos / Renglones soportados</h2>
             <p className="upload-card__subtitle">
-              Valores reconocidos en la columna <code>Riesgo</code>. El backend los normaliza automáticamente.
+              Valores reconocidos en la columna <code>Riesgo</code>. Cada renglón oficial acepta
+              cualquiera de sus sinónimos (tampoco distingue mayúsculas/tildes/espacios); si un
+              valor no coincide con ninguno de los dos, la fila se reporta como riesgo no reconocido.
             </p>
-            <div className="riesgos-grid">
-              {RIESGOS_SOPORTADOS.map((r) => (
-                <span key={r} className="riesgo-chip">{r}</span>
-              ))}
+            <div className="headers-table-wrapper">
+              <table className="headers-table">
+                <thead>
+                  <tr>
+                    <th>Renglón oficial</th>
+                    <th>Sinónimos aceptados</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {RIESGOS_SINONIMOS.map((r) => (
+                    <tr key={r.oficial}>
+                      <td><code>{r.oficial}</code></td>
+                      <td>{r.sinonimos.join(', ')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </aside>
