@@ -439,36 +439,10 @@ public class InsertorDatos {
 
     /**
      * Busca, dentro de los riesgos ya asignados a la licitación, uno que
-     * coincida EXACTAMENTE en riesgo + fecha + status + motivo + montoCotizado
-     * + montoAdjudicado. Si existe, el registro ya está cargado tal cual en
-     * el sistema (caso 1: mismo dato repetido) y no debe volver a insertarse
-     * ni modificarse.
+     * coincida en riesgo + fecha + status + motivo (sin importar los montos:
+     * eso se resuelve a nivel de componentes, ver tieneComponenteIgual).
      */
-    private LicitacionRiesgo buscarLicitacionRiesgoExistente(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status, String motivo, Double montoCotizado, Double montoAdjudicado) {
-
-        for (LicitacionRiesgo existente : licitacion.getRiesgosAsignados()) {
-
-            if (!coincideRiesgoFechaStatusMotivo(existente, riesgo, fecha, status, motivo)) {
-                continue;
-            }
-
-            if (mismoMonto(existente.getMontoCotizado(), montoCotizado)
-                    && mismoMonto(existente.getMontoAdjudicado(), montoAdjudicado)) {
-                return existente;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Busca, dentro de los riesgos ya asignados a la licitación, uno que
-     * coincida en riesgo + fecha + status + motivo sin importar los montos.
-     * Se usa para el caso 2: dos renglones "iguales" (mismo concepto) pero
-     * con montoCotizado y/o montoAdjudicado distintos, que deben sumarse en
-     * un único registro en lugar de generar un duplicado.
-     */
-    private LicitacionRiesgo buscarLicitacionRiesgoParcial(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status, String motivo) {
+    private LicitacionRiesgo buscarLicitacionRiesgoPorMetadatos(Licitacion licitacion, Riesgo riesgo, Date fecha, Status status, String motivo) {
 
         for (LicitacionRiesgo existente : licitacion.getRiesgosAsignados()) {
 
@@ -478,6 +452,40 @@ public class InsertorDatos {
         }
 
         return null;
+    }
+
+    /**
+     * true si este renglón ya tiene un componente con exactamente este
+     * montoCotizado + montoAdjudicado. Es la clave para que sumar sea
+     * idempotente: si el mismo Excel (completo o parcial) se vuelve a
+     * cargar, la fila que ya aportó este monto no se vuelve a sumar; si el
+     * monto es distinto, es un aporte nuevo y sí se suma.
+     */
+    private boolean tieneComponenteIgual(LicitacionRiesgo licitacionRiesgo, Double montoCotizado, Double montoAdjudicado) {
+
+        for (LicitacionRiesgoComponente componente : licitacionRiesgo.getComponentes()) {
+            if (mismoMonto(componente.getMontoCotizado(), montoCotizado)
+                    && mismoMonto(componente.getMontoAdjudicado(), montoAdjudicado)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /** Recalcula montoCotizado/montoAdjudicado del renglón como la suma de todos sus componentes. */
+    private void recalcularTotales(LicitacionRiesgo licitacionRiesgo) {
+
+        Double totalCotizado = null;
+        Double totalAdjudicado = null;
+
+        for (LicitacionRiesgoComponente componente : licitacionRiesgo.getComponentes()) {
+            totalCotizado = this.sumarMontos(totalCotizado, componente.getMontoCotizado());
+            totalAdjudicado = this.sumarMontos(totalAdjudicado, componente.getMontoAdjudicado());
+        }
+
+        licitacionRiesgo.setMontoCotizado(totalCotizado);
+        licitacionRiesgo.setMontoAdjudicado(totalAdjudicado);
     }
 
     private Double sumarMontos(Double a, Double b) {
@@ -635,20 +643,9 @@ public class InsertorDatos {
                     }
                 }
 
-                // Caso 1: ya existe un renglón EXACTAMENTE igual (riesgo+fecha+status+motivo+
-                // montoCotizado+montoAdjudicado) -> ya está cargado, se omite para no duplicar.
-                LicitacionRiesgo licitacionRiesgoExacto = this.buscarLicitacionRiesgoExistente(licitacion, riesgo, fechaRiesgo, status, motivo_str, montoCotizadoCalculado, montoAdjudicadoCalculado);
-
-                if (licitacionRiesgoExacto != null) {
-                    System.out.println("#### Renglón ya cargado exactamente igual (incluidos los montos) — se omite para evitar duplicado.");
-                    indiceRiesgo++;
-                    continue;
-                }
-
-                // Caso 2: existe un renglón con el mismo riesgo+fecha+status+motivo pero con
-                // montos distintos -> se suman los montos en ese mismo renglón en vez de crear uno nuevo.
-                LicitacionRiesgo licitacionRiesgoParcial = this.buscarLicitacionRiesgoParcial(licitacion, riesgo, fechaRiesgo, status, motivo_str);
-                boolean esRenglonNuevo = (licitacionRiesgoParcial == null);
+                // Buscar el renglón por riesgo+fecha+status+motivo (sin importar montos).
+                LicitacionRiesgo licitacionRiesgoExistente = this.buscarLicitacionRiesgoPorMetadatos(licitacion, riesgo, fechaRiesgo, status, motivo_str);
+                boolean esRenglonNuevo = (licitacionRiesgoExistente == null);
 
                 LicitacionRiesgo licitacionRiesgo;
 
@@ -657,13 +654,26 @@ public class InsertorDatos {
                     licitacionRiesgo.setRiesgo(riesgo);
                     licitacionRiesgo.setFecha(fechaRiesgo);
                     licitacionRiesgo.setLicitacion(licitacion);
-                    licitacionRiesgo.setMontoCotizado(montoCotizadoCalculado);
-                    licitacionRiesgo.setMontoAdjudicado(montoAdjudicadoCalculado);
                 } else {
-                    licitacionRiesgo = licitacionRiesgoParcial;
-                    System.out.println("#### Renglón con mismo riesgo+fecha+status+motivo pero monto distinto — se suman los montos.");
-                    licitacionRiesgo.setMontoCotizado(this.sumarMontos(licitacionRiesgo.getMontoCotizado(), montoCotizadoCalculado));
-                    licitacionRiesgo.setMontoAdjudicado(this.sumarMontos(licitacionRiesgo.getMontoAdjudicado(), montoAdjudicadoCalculado));
+                    licitacionRiesgo = licitacionRiesgoExistente;
+                }
+
+                // El aporte de ESTA fila (este monto puntual) puede ya estar contabilizado si
+                // existe un componente idéntico -> se omite para que recargar el mismo Excel
+                // (completo o parcial/delta) no sume dos veces. Si no existe, es un aporte
+                // nuevo: se agrega como componente y se recalcula el total del renglón.
+                if (this.tieneComponenteIgual(licitacionRiesgo, montoCotizadoCalculado, montoAdjudicadoCalculado)) {
+                    System.out.println("#### Este aporte (mismo riesgo+fecha+status+motivo+monto) ya estaba contabilizado — se omite para no duplicar.");
+                    indiceRiesgo++;
+                    continue;
+                }
+
+                LicitacionRiesgoComponente nuevoComponente = new LicitacionRiesgoComponente(licitacionRiesgo, montoCotizadoCalculado, montoAdjudicadoCalculado);
+                licitacionRiesgo.getComponentes().add(nuevoComponente);
+                this.recalcularTotales(licitacionRiesgo);
+
+                if (!esRenglonNuevo) {
+                    System.out.println("#### Renglón existente: nuevo aporte detectado, se suma al total.");
                 }
 
                 licitacionRiesgo.setStatus(status);
@@ -698,14 +708,16 @@ public class InsertorDatos {
     }
 
     /**
-     * Un renglón "esperado" según el Excel: riesgo + fecha + status + motivo,
-     * con los montos ya sumados si varias filas del Excel comparten esa misma
-     * clave (mismo criterio que buscarLicitacionRiesgoParcial/sumarMontos en
-     * el insertor), y la lista de filas que aportaron a esa suma, para poder
-     * reportarlas todas juntas en un solo mensaje.
+     * Un aporte esperado según UNA fila del Excel: riesgo + fecha + status +
+     * motivo + el monto puntual de esa fila. A diferencia de una versión
+     * anterior, ya no se suman varias filas entre sí acá: cada fila se
+     * compara individualmente contra los componentes ya guardados en la
+     * base (ver LicitacionRiesgoComponente), que es quien decide si esa
+     * fila ya estaba contabilizada o no. Esto hace que la verificación
+     * funcione igual con un Excel completo o con uno parcial/delta.
      */
-    private static class GrupoRenglonEsperado {
-        List<Integer> filas = new ArrayList<>();
+    private static class AporteEsperado {
+        int fila;
         Riesgo riesgo;
         Date fecha;
         String status;
@@ -714,12 +726,12 @@ public class InsertorDatos {
         Double montoCotEsperado;
     }
 
-    /** Todo lo que el Excel espera para una compulsa: sus renglones agrupados y el cliente declarado. */
+    /** Todo lo que el Excel espera para una compulsa: sus aportes y el cliente declarado. */
     private static class CompulsaEsperada {
         String numero;
         String anio;
         String clienteExcel;
-        List<GrupoRenglonEsperado> grupos = new ArrayList<>();
+        List<AporteEsperado> aportes = new ArrayList<>();
     }
 
     public VerificacionCargaResultadoDtoOutput verificarCarga(String rutaArchivo) {
@@ -775,13 +787,9 @@ public class InsertorDatos {
             int renglonOk      = 0;
 
             // ------------------------------------------------------------------------
-            // PASE 1: recorrer el Excel una sola vez y agrupar, por compulsa, los
-            // renglones esperados por riesgo+fecha+status+motivo, sumando los montos
-            // de todas las filas que compartan esa clave (mismo criterio que usa el
-            // insertor para fusionar duplicados: buscarLicitacionRiesgoParcial +
-            // sumarMontos). Sin esto, dos filas del Excel que se fusionan en un solo
-            // renglón de la base se comparaban una por una contra el total ya sumado
-            // y siempre daban "[MONTO DISTINTO]" aunque la fusión fuera correcta.
+            // PASE 1: recorrer el Excel una sola vez y juntar, por compulsa, cada fila
+            // como un aporte individual (SIN sumar entre filas acá: eso ahora lo
+            // resuelve la comparación contra los componentes guardados en la base).
             // ------------------------------------------------------------------------
             Map<String, CompulsaEsperada> compulsasEsperadas = new LinkedHashMap<>();
 
@@ -866,49 +874,31 @@ public class InsertorDatos {
                     }
                     if (montoCotEsperado == null) montoCotEsperado = montoCotExcel;
 
-                    // Buscar un grupo existente en esta compulsa con la misma clave
-                    // riesgo+fecha+status+motivo para sumar en vez de duplicar.
-                    GrupoRenglonEsperado grupo = null;
-                    for (GrupoRenglonEsperado g : compulsa.grupos) {
-                        boolean mismoRiesgo = g.riesgo.getId().equals(riesgoEsperado.getId());
-                        boolean mismaFecha  = (g.fecha == null && fechaExcel == null)
-                                || (g.fecha != null && fechaExcel != null && g.fecha.compareTo(fechaExcel) == 0);
-                        boolean mismoStatus = LimpiadorTexto.limpiarTildes(g.status).equals(LimpiadorTexto.limpiarTildes(statusExcel));
-                        boolean mismoMotivo = LimpiadorTexto.limpiarTildes(g.motivo).equals(LimpiadorTexto.limpiarTildes(motivoExcelCap));
-                        if (mismoRiesgo && mismaFecha && mismoStatus && mismoMotivo) {
-                            grupo = g;
-                            break;
-                        }
-                    }
-
-                    if (grupo == null) {
-                        grupo = new GrupoRenglonEsperado();
-                        grupo.riesgo = riesgoEsperado;
-                        grupo.fecha = fechaExcel;
-                        grupo.status = statusExcel;
-                        grupo.motivo = motivoExcelCap;
-                        grupo.montoAdjEsperado = montoAdjEsperado;
-                        grupo.montoCotEsperado = montoCotEsperado;
-                        grupo.filas.add(filaExcel);
-                        compulsa.grupos.add(grupo);
-                    } else {
-                        grupo.montoAdjEsperado = this.sumarMontos(grupo.montoAdjEsperado, montoAdjEsperado);
-                        grupo.montoCotEsperado = this.sumarMontos(grupo.montoCotEsperado, montoCotEsperado);
-                        grupo.filas.add(filaExcel);
-                    }
+                    AporteEsperado aporte = new AporteEsperado();
+                    aporte.fila = filaExcel;
+                    aporte.riesgo = riesgoEsperado;
+                    aporte.fecha = fechaExcel;
+                    aporte.status = statusExcel;
+                    aporte.motivo = motivoExcelCap;
+                    aporte.montoAdjEsperado = montoAdjEsperado;
+                    aporte.montoCotEsperado = montoCotEsperado;
+                    compulsa.aportes.add(aporte);
 
                     indiceToken++;
                 }
             }
 
             // ------------------------------------------------------------------------
-            // PASE 2: por cada compulsa, resolver la licitación una sola vez y comparar
-            // cada grupo (ya con los montos sumados) contra los renglones de la base.
+            // PASE 2: por cada compulsa, resolver la licitación una sola vez y, para
+            // cada aporte esperado, chequear si ya existe un componente idéntico en el
+            // renglón correspondiente de la base (no si el TOTAL coincide: el total
+            // puede incluir aportes de otras filas/otros imports que este Excel no
+            // tiene por qué repetir).
             // ------------------------------------------------------------------------
             for (CompulsaEsperada compulsa : compulsasEsperadas.values()) {
 
-                String filasCompulsa = compulsa.grupos.stream()
-                        .flatMap(g -> g.filas.stream())
+                String filasCompulsa = compulsa.aportes.stream()
+                        .map(a -> a.fila)
                         .distinct()
                         .sorted()
                         .map(String::valueOf)
@@ -919,7 +909,7 @@ public class InsertorDatos {
                     String msg = "[FALTA LICITACION] Filas " + filasCompulsa + " | Compulsa: " + compulsa.numero;
                     System.out.println(msg);
                     incidencias.add(msg);
-                    renglonesFaltantes += compulsa.grupos.size();
+                    renglonesFaltantes += compulsa.aportes.size();
                     continue;
                 }
 
@@ -939,86 +929,82 @@ public class InsertorDatos {
                     String msg = "[SIN RENGLONES] Filas " + filasCompulsa + " | Compulsa: " + compulsa.numero;
                     System.out.println(msg);
                     incidencias.add(msg);
-                    renglonesFaltantes += compulsa.grupos.size();
+                    renglonesFaltantes += compulsa.aportes.size();
                     continue;
                 }
 
-                // Copia mutable para no volver a matchear el mismo renglón de la base
-                // contra dos grupos distintos del Excel.
-                List<LicitacionRiesgo> riesgosDisponibles = new ArrayList<>(riesgosEnDB);
+                for (AporteEsperado aporte : compulsa.aportes) {
 
-                for (GrupoRenglonEsperado grupo : compulsa.grupos) {
-
-                    LicitacionRiesgo matchMetadatos = null;
-                    LicitacionRiesgo matchCompleto  = null;
-
-                    for (LicitacionRiesgo lr : riesgosDisponibles) {
-                        boolean mismoRiesgo = lr.getRiesgo() != null && lr.getRiesgo().getId().equals(grupo.riesgo.getId());
+                    // Puede haber más de una fila del Excel para el mismo riesgo+fecha+
+                    // status+motivo (eso es justamente lo que se suma como componentes
+                    // distintos), así que el renglón de la base es siempre el mismo para
+                    // todos los aportes que compartan esa clave.
+                    LicitacionRiesgo renglonDB = null;
+                    for (LicitacionRiesgo lr : riesgosEnDB) {
+                        boolean mismoRiesgo = lr.getRiesgo() != null && lr.getRiesgo().getId().equals(aporte.riesgo.getId());
                         // Comparación normalizada (sin tildes, mayúsculas): el status se guarda
                         // tal cual viene del Excel en cada import, así que "Desistida" y "DESISTIDA"
                         // pueden convivir en la base para el mismo concepto.
                         boolean mismoStatus = lr.getStatus() != null
-                                && LimpiadorTexto.limpiarTildes(lr.getStatus().getDetalle()).equals(LimpiadorTexto.limpiarTildes(grupo.status));
-                        boolean mismaFecha  = lr.getFecha()   != null && grupo.fecha != null && lr.getFecha().compareTo(grupo.fecha) == 0;
+                                && LimpiadorTexto.limpiarTildes(lr.getStatus().getDetalle()).equals(LimpiadorTexto.limpiarTildes(aporte.status));
+                        boolean mismaFecha  = lr.getFecha()   != null && aporte.fecha != null && lr.getFecha().compareTo(aporte.fecha) == 0;
                         String  motivoDB    = lr.getMotivo()  == null ? "" : lr.getMotivo();
-                        boolean mismoMotivo = LimpiadorTexto.limpiarTildes(motivoDB).equals(LimpiadorTexto.limpiarTildes(grupo.motivo));
+                        boolean mismoMotivo = LimpiadorTexto.limpiarTildes(motivoDB).equals(LimpiadorTexto.limpiarTildes(aporte.motivo));
 
-                        if (!mismoRiesgo || !mismoStatus || !mismaFecha || !mismoMotivo) continue;
-
-                        // Metadatos ok — verificar montos, ya sumados si el grupo venía de varias filas
-                        boolean adjOk = grupo.montoAdjEsperado == null
-                                ? (lr.getMontoAdjudicado() == null)
-                                : (lr.getMontoAdjudicado() != null && Math.abs(lr.getMontoAdjudicado() - grupo.montoAdjEsperado) < 0.01);
-
-                        boolean cotOk = grupo.montoCotEsperado == null
-                                ? (lr.getMontoCotizado() == null)
-                                : (lr.getMontoCotizado() != null && Math.abs(lr.getMontoCotizado() - grupo.montoCotEsperado) < 0.01);
-
-                        if (adjOk && cotOk) {
-                            matchCompleto = lr;
+                        if (mismoRiesgo && mismoStatus && mismaFecha && mismoMotivo) {
+                            renglonDB = lr;
                             break;
-                        } else if (matchMetadatos == null) {
-                            matchMetadatos = lr; // guardar el primero con metadatos ok para reporte
                         }
                     }
 
-                    String filasGrupo = grupo.filas.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
-
-                    if (matchCompleto != null) {
-                        riesgosDisponibles.remove(matchCompleto);
-                        renglonOk++;
-                    } else if (matchMetadatos != null) {
-                        riesgosDisponibles.remove(matchMetadatos);
-                        String adjDB = matchMetadatos.getMontoAdjudicado() == null ? "null" : matchMetadatos.getMontoAdjudicado().toString();
-                        String cotDB = matchMetadatos.getMontoCotizado()   == null ? "null" : matchMetadatos.getMontoCotizado().toString();
-                        String msg = "[MONTO DISTINTO] Filas " + filasGrupo
+                    if (renglonDB == null) {
+                        String msg = "[RENGLON FALTANTE] Fila " + aporte.fila
                                 + " | Compulsa: " + compulsa.numero
-                                + " | Riesgo: " + grupo.riesgo.getDetalle()
-                                + (grupo.filas.size() > 1 ? " | (suma de " + grupo.filas.size() + " filas)" : "")
-                                + " | AdjExcel: " + grupo.montoAdjEsperado + " -> DB: " + adjDB
-                                + " | CotExcel: " + grupo.montoCotEsperado + " -> DB: " + cotDB;
-                        System.out.println(msg);
-                        incidencias.add(msg);
-                        if (grupo.montoAdjEsperado != null && matchMetadatos.getMontoAdjudicado() != null
-                                && Math.abs(matchMetadatos.getMontoAdjudicado() - grupo.montoAdjEsperado) >= 0.01) {
-                            renglonesMalMonto++;
-                        }
-                        if (grupo.montoCotEsperado != null && matchMetadatos.getMontoCotizado() != null
-                                && Math.abs(matchMetadatos.getMontoCotizado() - grupo.montoCotEsperado) >= 0.01) {
-                            renglonesMalCotizado++;
-                        }
-                    } else {
-                        String msg = "[RENGLON FALTANTE] Filas " + filasGrupo
-                                + " | Compulsa: " + compulsa.numero
-                                + " | Riesgo: " + grupo.riesgo.getDetalle()
-                                + " | Status: " + grupo.status
-                                + " | Motivo: '" + grupo.motivo + "'"
-                                + " | Fecha: " + grupo.fecha
+                                + " | Riesgo: " + aporte.riesgo.getDetalle()
+                                + " | Status: " + aporte.status
+                                + " | Motivo: '" + aporte.motivo + "'"
+                                + " | Fecha: " + aporte.fecha
                                 + " -> NO encontrado en BD";
                         System.out.println(msg);
                         incidencias.add(msg);
                         renglonesFaltantes++;
+                        continue;
                     }
+
+                    boolean componenteExacto = this.tieneComponenteIgual(renglonDB, aporte.montoCotEsperado, aporte.montoAdjEsperado);
+
+                    if (componenteExacto) {
+                        renglonOk++;
+                        continue;
+                    }
+
+                    // El renglón existe pero ningún componente tiene exactamente este
+                    // monto -> esta fila puntual no está reflejada en la base. Se
+                    // reporta por separado si es el cotizado, el adjudicado, o ambos,
+                    // buscando entre TODOS los componentes existentes (no solo uno).
+                    boolean existeComponenteConAdj = renglonDB.getComponentes().stream()
+                            .anyMatch(c -> this.mismoMonto(c.getMontoAdjudicado(), aporte.montoAdjEsperado));
+                    boolean existeComponenteConCot = renglonDB.getComponentes().stream()
+                            .anyMatch(c -> this.mismoMonto(c.getMontoCotizado(), aporte.montoCotEsperado));
+
+                    String componentesDB = renglonDB.getComponentes().isEmpty()
+                            ? "(sin componentes)"
+                            : renglonDB.getComponentes().stream()
+                                    .map(c -> "cot=" + c.getMontoCotizado() + "/adj=" + c.getMontoAdjudicado())
+                                    .collect(java.util.stream.Collectors.joining(" ; "));
+
+                    String msg = "[APORTE FALTANTE] Fila " + aporte.fila
+                            + " | Compulsa: " + compulsa.numero
+                            + " | Riesgo: " + aporte.riesgo.getDetalle()
+                            + " | AdjExcel: " + aporte.montoAdjEsperado
+                            + " | CotExcel: " + aporte.montoCotEsperado
+                            + " | Componentes en DB: " + componentesDB
+                            + " | Total renglón en DB: cot=" + renglonDB.getMontoCotizado() + "/adj=" + renglonDB.getMontoAdjudicado();
+                    System.out.println(msg);
+                    incidencias.add(msg);
+
+                    if (!existeComponenteConAdj) renglonesMalMonto++;
+                    if (!existeComponenteConCot) renglonesMalCotizado++;
                 }
             }
 

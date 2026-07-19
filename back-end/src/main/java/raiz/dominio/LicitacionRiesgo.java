@@ -5,10 +5,12 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 
 @Data
-@EqualsAndHashCode(exclude = "licitacion")
+@EqualsAndHashCode(exclude = {"licitacion", "componentes"})
 @Entity
 @Table(name = "licitacion_riesgo")
 public class LicitacionRiesgo {
@@ -59,4 +61,18 @@ public class LicitacionRiesgo {
     @ManyToOne
     @JoinColumn(name = "id_mes")
     private Mes mes;
+
+    // Aportes individuales que componen montoCotizado/montoAdjudicado. Se usa para
+    // detectar si una fila del Excel ya fue contabilizada antes (evita sumarla de
+    // nuevo al recargar el mismo archivo, completo o parcial) sin perder aportes
+    // genuinamente nuevos. Ver LicitacionRiesgoComponente.
+    @OneToMany(mappedBy = "licitacionRiesgo", cascade = CascadeType.ALL)
+    private List<LicitacionRiesgoComponente> componentes = new ArrayList<>();
+
+    public List<LicitacionRiesgoComponente> getComponentes() {
+        if (this.componentes == null) {
+            this.componentes = new ArrayList<>();
+        }
+        return this.componentes;
+    }
 }
