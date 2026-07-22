@@ -28,7 +28,7 @@ public class InsertorDatos {
 
     private final IClienteRepository clienteRepository;
     private final IEntidadAdjudicada entidadAdjudicadaRepository;
-    private final ILicitacion entidadLicitacionRepository;
+    private final ILicitacionRepository entidadLicitacionRepository;
     private final IMes entidadMesRepository;
     private final IRiesgo entidadRiesgoRepository;
     private final IStatus entidadStatusRepository;
@@ -39,7 +39,7 @@ public class InsertorDatos {
     private final LectorCeldas lectorCeldas = new LectorCeldas();
     private GestorRiesgos gestorRiesgos;
 
-    public InsertorDatos(IClienteRepository clienteRepository, IEntidadAdjudicada entidadAdjudicadaRepository, ILicitacion entidadLicitacionRepository, IMes entidadMesRepository, IRiesgo entidadRiesgoRepository, IStatus entidadStatusRepository, ILicitacionRiesgoRepository licitacionRiesgoRepository, ITipoAdjudicacion entidadTipoAdjudicacionRepository, IRamoRepository entidadRamoRepository, IMonedaRepository monedaRepository) {
+    public InsertorDatos(IClienteRepository clienteRepository, IEntidadAdjudicada entidadAdjudicadaRepository, ILicitacionRepository entidadLicitacionRepository, IMes entidadMesRepository, IRiesgo entidadRiesgoRepository, IStatus entidadStatusRepository, ILicitacionRiesgoRepository licitacionRiesgoRepository, ITipoAdjudicacion entidadTipoAdjudicacionRepository, IRamoRepository entidadRamoRepository, IMonedaRepository monedaRepository) {
 
         this.clienteRepository = clienteRepository;
         this.entidadAdjudicadaRepository = entidadAdjudicadaRepository;

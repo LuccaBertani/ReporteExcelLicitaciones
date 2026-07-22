@@ -6,12 +6,11 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import raiz.dominio.Licitacion;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Optional;
 
 @Repository
-public interface ILicitacion extends JpaRepository<Licitacion,Long> {
+public interface ILicitacionRepository extends JpaRepository<Licitacion,Long> {
 
     boolean existsByNumeroCompulsa(String stringCellValue);
 
