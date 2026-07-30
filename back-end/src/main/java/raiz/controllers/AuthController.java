@@ -51,4 +51,13 @@ public class AuthController {
         return this.authService.refresh(authHeader);
     }
 
+    // Endpoint liviano para validar si el access token actual sigue siendo válido.
+    // Lo usa el frontend una sola vez al montar la app (AuthContext), para no confiar
+    // solo en "hay un token en localStorage" y así evitar que Home/Upload naveguen
+    // con una sesión vencida hasta que el Dashboard la detecta recién al pedir datos.
+    @GetMapping("/me")
+    public ResponseEntity<?> me(@RequestHeader(value = HttpHeaders.AUTHORIZATION, required = false) final String authHeader) {
+        return this.authService.me(authHeader);
+    }
+
 }

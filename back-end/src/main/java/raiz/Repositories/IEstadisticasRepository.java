@@ -64,7 +64,8 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "FROM licitacion_riesgo AS l_r\n" +
             "INNER JOIN status AS s ON s.id = l_r.id_status\n" +
             "WHERE (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
-            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)", nativeQuery = true)
+            "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)" +
+            " AND (s.detalle <> 'Desistida')", nativeQuery = true)
     IWinrateGlobal getWinrateGlobal(@Param("fechaDesde") String fechaDesde, @Param("fechaHasta") String fechaHasta);
 
     @Query(value = "SELECT \n" +

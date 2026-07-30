@@ -1,12 +1,18 @@
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext'
+import '../App.css'
 
 // Envuelve cualquier página que requiera sesión iniciada.
+// - Mientras se valida el token contra el backend (checkingAuth) -> no decide nada todavía
 // - Si la sesión venció (401 detectado por authFetch) -> /401
 // - Si no hay sesión -> /login (guardando desde dónde venía, para volver ahí después)
 export default function ProtectedRoute({ children }) {
-  const { isAuthenticated, unauthorized } = useAuth()
+  const { isAuthenticated, unauthorized, checkingAuth } = useAuth()
   const location = useLocation()
+
+  if (checkingAuth) {
+    return <SesionVerificando />
+  }
 
   if (unauthorized) {
     return <Navigate to="/401" replace />
@@ -17,6 +23,17 @@ export default function ProtectedRoute({ children }) {
   }
 
   return children
+}
+
+// Pantalla breve mientras se confirma si el token guardado sigue siendo válido.
+// Evita el "flash" de Home/Upload/Dashboard con una sesión que en realidad ya venció.
+function SesionVerificando() {
+  return (
+    <div className="sesion-verificando">
+      <span className="pulse-dot" />
+      Verificando sesión…
+    </div>
+  )
 }
 
 // Envuelve la pantalla de 401: solo se puede ver si REALMENTE se venció una

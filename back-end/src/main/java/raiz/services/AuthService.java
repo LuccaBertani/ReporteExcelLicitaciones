@@ -11,6 +11,7 @@ import raiz.Repositories.IUsuarioRepository;
 import raiz.config.JwtUtil;
 import raiz.dominio.Usuario;
 import raiz.dtos.output.JwtResponseDtoOutput;
+import raiz.dtos.output.MeDtoOutput;
 
 @Service
 public class AuthService {
@@ -60,5 +61,32 @@ public class AuthService {
         String newRefreshToken = JwtUtil.generarRefreshToken(email);
 
         return ResponseEntity.ok(new JwtResponseDtoOutput(accessToken, newRefreshToken));
+    }
+
+    // Valida el access token actual sin renovarlo (a diferencia de refresh()).
+    // Devuelve 401 ante cualquier problema (falta el header, el token no es válido,
+    // vencido, o el usuario ya no existe) para que el frontend sepa que la sesión
+    // no sirve y dispare su propio flujo de refresh/logout.
+    public ResponseEntity<?> me(String authHeader) {
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String token = authHeader.substring(7);
+
+        try {
+            Claims claims = JwtUtil.parseClaims(token);
+            String email = claims.getSubject();
+
+            Usuario usuario = this.usuarioRepository.findByEmail(email).orElse(null);
+            if (usuario == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+            }
+
+            return ResponseEntity.ok().body(new MeDtoOutput(email));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
     }
 }

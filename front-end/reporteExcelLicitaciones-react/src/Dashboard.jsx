@@ -91,6 +91,8 @@ export default function Dashboard() {
   const sobreprecio      = num(data.sobreprecioPromedio?.sobreprecio_promedio_porcentaje)
   const totalDesistidas  = num(data.totalDesistidas?.total_compulsas_desistidas)
   const montoDesistido   = num(data.montoAdjudicadoDesistido?.cantidad_adjudicada_total_desistida)
+  const totalGanadas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion === "GANADA")?.cantidad_compulsas ?? 0;
+  const totalPerdidas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion === "PERDIDA")?.cantidad_compulsas ?? 0;
 
   return (
     <div className="dashboard">
@@ -151,14 +153,15 @@ export default function Dashboard() {
       ) : null}
 
       <SectionTitle>Indicadores Clave</SectionTitle>
-      <section className="kpi-grid kpi-grid--7">
-        <KpiCard label="Licitaciones totales"   value={totalLicitaciones} format={formatoEntero}      accent="neutral" sublabel="compulsas únicas" />
-        <KpiCard label="Tasa de ganadas global"  value={winrate}          format={formatoPorcentaje}   accent="green"   sublabel="por riesgo × compulsa" />
-        <KpiCard label="Adjudicado en ganadas"   value={totalAdjudicado}  format={formatoMonedaCorta}  accent="blue"    />
-        <KpiCard label="Beneficio sobre cotizado" value={beneficio}       format={formatoPorcentaje}   accent="green"   sublabel="por riesgo × compulsa" />
-        <KpiCard label="Sobreprecio promedio"    value={sobreprecio}      format={formatoPorcentaje}   accent="amber"   />
+      <section className="kpi-grid kpi-grid--8">
+        <KpiCard label="Total de licitaciones ingresadas"   value={totalLicitaciones} format={formatoEntero}      accent="neutral" sublabel="compulsas únicas" />
+        <KpiCard label="Total importe adjudicado"   value={totalAdjudicado}  format={formatoMonedaCorta}  accent="blue"    />
+        <KpiCard label="Beneficio sobre lo cotizado y adjudicado" value={beneficio}       format={formatoPorcentaje}   accent="green"   sublabel="por riesgo × compulsa" />
+        <KpiCard label="Sobreprecio entre lo cotizado y adjudicado"    value={sobreprecio}      format={formatoPorcentaje}   accent="amber"   />
+        <KpiCard label="Compulsas ganadas"    value={totalGanadas}  format={formatoEntero}       accent="amber"   sublabel="renglones (riesgo × compulsa)" />
+        <KpiCard label="Compulsas perdidas"    value={totalPerdidas}  format={formatoEntero}       accent="amber"   sublabel="renglones (riesgo × compulsa)" />
         <KpiCard label="Compulsas desistidas"    value={totalDesistidas}  format={formatoEntero}       accent="amber"   sublabel="renglones (riesgo × compulsa)" />
-        <KpiCard label="Masa desistida teórica"  value={montoDesistido}   format={formatoMonedaCorta}  accent="neutral" />
+        <KpiCard label="Total adjudicado de lo desistido"  value={montoDesistido}   format={formatoMonedaCorta}  accent="neutral" />
       </section>
 
       <SectionTitle>Evolución y Distribución</SectionTitle>

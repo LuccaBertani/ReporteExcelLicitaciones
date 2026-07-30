@@ -9,7 +9,7 @@ public class Main {
 
         PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-        System.out.println(passwordEncoder.encode("Lucca_2026"));
+        System.out.println(passwordEncoder.encode("1234"));
 
     }
 

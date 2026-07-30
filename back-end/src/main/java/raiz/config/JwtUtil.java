@@ -22,6 +22,7 @@ public class JwtUtil {
     // en ese caso las sesiones no sobreviven a un reinicio.
     private static SecretKey resolveKey() {
         String secret = System.getenv("JWT_SECRET");
+        System.out.println("[DEBUG] JWT_SECRET leída del entorno: " + secret);
         if (secret == null || secret.isBlank()) {
             System.out.println("[AVISO] JWT_SECRET no está definida: se genera una clave temporal en memoria. " +
                     "Las sesiones no van a sobrevivir a un reinicio del backend. Definila en tu .env para un entorno estable.");
