@@ -91,8 +91,8 @@ export default function Dashboard() {
   const sobreprecio      = num(data.sobreprecioPromedio?.sobreprecio_promedio_porcentaje)
   const totalDesistidas  = num(data.totalDesistidas?.total_compulsas_desistidas)
   const montoDesistido   = num(data.montoAdjudicadoDesistido?.cantidad_adjudicada_total_desistida)
-  const totalGanadas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion === "GANADA")?.cantidad_compulsas ?? 0;
-  const totalPerdidas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion === "PERDIDA")?.cantidad_compulsas ?? 0;
+  const totalGanadas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion?.toUpperCase() === "GANADA")?.cantidad_compulsas ?? 0;
+  const totalPerdidas = (data.estadoLicitaciones ?? []).find((row) => row.estado_licitacion?.toUpperCase() === "PERDIDA")?.cantidad_compulsas ?? 0;
 
   return (
     <div className="dashboard">
