@@ -1,13 +1,13 @@
 import { num, formatoPorcentaje, formatoMonedaCorta } from '../utils/formato'
 
 /**
- * Tabla de desvío de precio por motivo/riesgo.
+ * Tabla de desvío de precio por riesgo (una fila por riesgo).
  * Muestra: riesgo, perdidas, ganadas, cotizado, adjudicado, desvío %.
  */
 export default function DesvioPrecios({ data }) {
   const rows = (data ?? []).map((row) => ({
     riesgo: row.riesgo,
-    perdidas: row.licitaciones_perdidas_por_motivo,
+    perdidas: row.licitaciones_perdidas_riesgo,
     ganadas: row.total_ganadas_riesgo,
     cotizado: num(row.monto_cotizado_total_riesgo),
     adjudicado: num(row.monto_adjudicado_total_riesgo),

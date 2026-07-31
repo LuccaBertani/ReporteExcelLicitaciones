@@ -226,8 +226,7 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             ")\n" +
             "SELECT \n" +
             "    r.detalle AS riesgo,\n" +
-            "    l_r.motivo,\n" +
-            "    COUNT(DISTINCT l_r.id_licitacion) AS licitaciones_perdidas_por_motivo,\n" +
+            "    COUNT(DISTINCT l_r.id_licitacion) AS licitaciones_perdidas_riesgo,\n" +
             "    m_r.licitaciones_ganadas AS total_ganadas_riesgo,\n" +
             "    m_r.licitaciones_totales AS total_activas_riesgo,\n" +
             "    FORMAT(m_r.monto_cotizado_total, 2, 'de_DE') AS monto_cotizado_total_riesgo,\n" +
@@ -242,13 +241,11 @@ public interface IEstadisticasRepository extends org.springframework.data.reposi
             "INNER JOIN riesgo AS r ON r.id = l_r.id_riesgo\n" +
             "INNER JOIN MetricasPorRiesgo AS m_r ON m_r.id_riesgo = l_r.id_riesgo\n" +
             "WHERE s.detalle = 'Perdida' \n" +
-            "  AND l_r.motivo IS NOT NULL\n" +
             "  AND (:fechaDesde IS NULL OR l_r.fecha >= :fechaDesde)\n" +
             "  AND (:fechaHasta IS NULL OR l_r.fecha <= :fechaHasta)\n" +
             "GROUP BY \n" +
             "    r.id, \n" +
             "    r.detalle, \n" +
-            "    l_r.motivo, \n" +
             "    m_r.licitaciones_totales, \n" +
             "    m_r.licitaciones_ganadas,\n" +
             "    m_r.monto_cotizado_total,\n" +
